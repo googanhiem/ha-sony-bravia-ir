@@ -1,13 +1,13 @@
 {
   "domain": "sony_bravia_ir",
   "name": "Sony Bravia IR",
-  "codeowners": [],
+  "codeowners": ["@googanhiem"],
   "config_flow": true,
   "dependencies": ["infrared"],
-  "documentation": "https://github.com/OWNER/ha-sony-bravia-ir",
+  "documentation": "https://github.com/googanhiem/ha-sony-bravia-ir",
   "integration_type": "device",
   "iot_class": "assumed_state",
-  "issue_tracker": "https://github.com/OWNER/ha-sony-bravia-ir/issues",
+  "issue_tracker": "https://github.com/googanhiem/ha-sony-bravia-ir/issues",
   "requirements": [],
   "version": "0.1.0"
 }
