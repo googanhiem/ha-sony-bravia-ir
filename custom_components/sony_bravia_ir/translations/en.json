@@ -1,0 +1,274 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This TV has already been configured with this infrared entity.",
+      "no_infrared_entities": "No infrared emitter or receiver entities were found. Set up an integration that provides one (for example ESPHome) first.",
+      "reconfigure_successful": "Re-configuration was successful"
+    },
+    "error": {
+      "missing_infrared_entity": "Select an infrared emitter or receiver."
+    },
+    "step": {
+      "user": {
+        "title": "Set up Sony Bravia KDL-42W653A",
+        "description": "Select at least one infrared emitter or receiver to use with your Sony TV.",
+        "data": {
+          "infrared_entity_id": "Infrared emitter",
+          "infrared_receiver_entity_id": "Infrared receiver"
+        },
+        "data_description": {
+          "infrared_entity_id": "The infrared emitter used to send commands to the TV.",
+          "infrared_receiver_entity_id": "Optional: an infrared receiver that picks up the original Sony remote, so its key presses show up as events."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Sony Bravia TV",
+        "description": "Change the infrared entities used by your Sony TV.",
+        "data": {
+          "infrared_entity_id": "Infrared emitter",
+          "infrared_receiver_entity_id": "Infrared receiver"
+        },
+        "data_description": {
+          "infrared_entity_id": "The infrared emitter used to send commands to the TV.",
+          "infrared_receiver_entity_id": "Optional: an infrared receiver that picks up the original Sony remote, so its key presses show up as events."
+        }
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "power": {
+        "name": "Power"
+      },
+      "power_on": {
+        "name": "Power on"
+      },
+      "power_off": {
+        "name": "Power off"
+      },
+      "input": {
+        "name": "Input"
+      },
+      "tv": {
+        "name": "TV"
+      },
+      "hdmi_1": {
+        "name": "HDMI 1"
+      },
+      "hdmi_2": {
+        "name": "HDMI 2"
+      },
+      "hdmi_3": {
+        "name": "HDMI 3"
+      },
+      "hdmi_4": {
+        "name": "HDMI 4"
+      },
+      "volume_up": {
+        "name": "Volume up"
+      },
+      "volume_down": {
+        "name": "Volume down"
+      },
+      "mute": {
+        "name": "Mute"
+      },
+      "channel_up": {
+        "name": "Channel up"
+      },
+      "channel_down": {
+        "name": "Channel down"
+      },
+      "home": {
+        "name": "Home"
+      },
+      "back": {
+        "name": "Back"
+      },
+      "options": {
+        "name": "Options"
+      },
+      "exit": {
+        "name": "Exit"
+      },
+      "info": {
+        "name": "Info"
+      },
+      "guide": {
+        "name": "Guide"
+      },
+      "sync_menu": {
+        "name": "Sync menu"
+      },
+      "sen": {
+        "name": "SEN"
+      },
+      "netflix": {
+        "name": "Netflix"
+      },
+      "up": {
+        "name": "Up"
+      },
+      "down": {
+        "name": "Down"
+      },
+      "left": {
+        "name": "Left"
+      },
+      "right": {
+        "name": "Right"
+      },
+      "ok": {
+        "name": "OK"
+      },
+      "num_0": {
+        "name": "0"
+      },
+      "num_1": {
+        "name": "1"
+      },
+      "num_2": {
+        "name": "2"
+      },
+      "num_3": {
+        "name": "3"
+      },
+      "num_4": {
+        "name": "4"
+      },
+      "num_5": {
+        "name": "5"
+      },
+      "num_6": {
+        "name": "6"
+      },
+      "num_7": {
+        "name": "7"
+      },
+      "num_8": {
+        "name": "8"
+      },
+      "num_9": {
+        "name": "9"
+      },
+      "red": {
+        "name": "Red"
+      },
+      "green": {
+        "name": "Green"
+      },
+      "yellow": {
+        "name": "Yellow"
+      },
+      "blue": {
+        "name": "Blue"
+      },
+      "picture_mode": {
+        "name": "Picture mode"
+      },
+      "picture_off": {
+        "name": "Picture off"
+      },
+      "wide": {
+        "name": "Wide"
+      },
+      "audio": {
+        "name": "Audio"
+      },
+      "subtitle": {
+        "name": "Subtitle"
+      },
+      "teletext": {
+        "name": "Teletext"
+      },
+      "jump": {
+        "name": "Jump"
+      },
+      "rewind": {
+        "name": "Rewind"
+      },
+      "fast_forward": {
+        "name": "Fast forward"
+      },
+      "previous": {
+        "name": "Previous"
+      },
+      "next": {
+        "name": "Next"
+      }
+    },
+    "event": {
+      "received_command": {
+        "name": "Received command",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "power": "Power",
+              "power_on": "Power on",
+              "power_off": "Power off",
+              "volume_up": "Volume up",
+              "volume_down": "Volume down",
+              "mute": "Mute",
+              "channel_up": "Channel up",
+              "channel_down": "Channel down",
+              "input": "Input",
+              "tv": "TV",
+              "hdmi_1": "HDMI 1",
+              "hdmi_2": "HDMI 2",
+              "hdmi_3": "HDMI 3",
+              "hdmi_4": "HDMI 4",
+              "num_1": "1",
+              "num_2": "2",
+              "num_3": "3",
+              "num_4": "4",
+              "num_5": "5",
+              "num_6": "6",
+              "num_7": "7",
+              "num_8": "8",
+              "num_9": "9",
+              "num_0": "0",
+              "nav_up": "Up",
+              "nav_down": "Down",
+              "nav_left": "Left",
+              "nav_right": "Right",
+              "ok": "OK",
+              "home": "Home",
+              "return": "Return",
+              "options": "Options",
+              "exit": "Exit",
+              "display": "Display",
+              "guide": "Guide",
+              "sync_menu": "Sync menu",
+              "sen": "SEN",
+              "netflix": "Netflix",
+              "red": "Red",
+              "green": "Green",
+              "yellow": "Yellow",
+              "blue": "Blue",
+              "picture_mode": "Picture mode",
+              "picture_off": "Picture off",
+              "wide": "Wide",
+              "audio": "Audio",
+              "subtitle": "Subtitle",
+              "teletext": "Teletext",
+              "jump": "Jump",
+              "play": "Play",
+              "pause": "Pause",
+              "stop": "Stop",
+              "rewind": "Rewind",
+              "fast_forward": "Fast forward",
+              "previous": "Previous",
+              "next": "Next",
+              "unknown": "Unknown"
+            }
+          }
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_source": {
+      "message": "Unknown source {source}."
+    }
+  }
+}
