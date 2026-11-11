@@ -11,13 +11,22 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
+from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+)
 
 from .const import (
+    CONF_GENERATION,
     CONF_INFRARED_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
+    CONF_MODEL,
     DOMAIN,
-    MODEL,
+    BraviaGeneration,
 )
 
 try:  # Home Assistant 2026.11+ validates with probatio.
@@ -27,10 +36,20 @@ except ImportError:  # pragma: no cover - older Home Assistant releases
 
 
 @callback
-def _infrared_entity_schema(hass: HomeAssistant) -> vol.Schema:
-    """Return the emitter/receiver selection schema."""
+def _tv_schema(hass: HomeAssistant) -> vol.Schema:
+    """Return the TV and emitter/receiver selection schema."""
     return vol.Schema(
         {
+            vol.Required(
+                CONF_GENERATION, default=BraviaGeneration.ANDROID.value
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=[generation.value for generation in BraviaGeneration],
+                    translation_key=CONF_GENERATION,
+                    mode=SelectSelectorMode.LIST,
+                )
+            ),
+            vol.Optional(CONF_MODEL): TextSelector(),
             vol.Optional(CONF_INFRARED_ENTITY_ID): EntitySelector(
                 EntitySelectorConfig(
                     domain=INFRARED_DOMAIN,
@@ -58,7 +77,7 @@ def _has_infrared_entity(user_input: dict[str, Any]) -> bool:
 class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Sony Bravia IR."""
 
-    VERSION = 1
+    VERSION = 2
 
     def _entity_name(self, entity_id: str) -> str:
         """Return the friendly name of an entity for the entry title."""
@@ -99,15 +118,17 @@ class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
                 title_entity_id = user_input.get(
                     CONF_INFRARED_ENTITY_ID
                 ) or user_input.get(CONF_INFRARED_RECEIVER_ENTITY_ID)
+                model = user_input.get(CONF_MODEL) or "TV"
                 return self.async_create_entry(
-                    title=f"Sony {MODEL} via {self._entity_name(title_entity_id)}",
+                    title=f"Sony Bravia {model} via "
+                    f"{self._entity_name(title_entity_id)}",
                     data=user_input,
                 )
             errors["base"] = "missing_infrared_entity"
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_infrared_entity_schema(self.hass),
+            data_schema=_tv_schema(self.hass),
             errors=errors,
         )
 
@@ -133,7 +154,7 @@ class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
-                _infrared_entity_schema(self.hass), entry.data
+                _tv_schema(self.hass), entry.data
             ),
             errors=errors,
         )

@@ -159,12 +159,32 @@
       },
       "next": {
         "default": "mdi:skip-next"
+      },
+      "youtube": {
+        "default": "mdi:youtube"
+      },
+      "google_play": {
+        "default": "mdi:google-play"
+      },
+      "action_menu": {
+        "default": "mdi:menu"
+      },
+      "help": {
+        "default": "mdi:help-circle-outline"
+      },
+      "discover": {
+        "default": "mdi:compass-outline"
       }
     },
     "event": {
       "received_command": {
         "default": "mdi:remote-tv"
       }
+    }
+  },
+  "services": {
+    "send_sirc": {
+      "service": "mdi:remote-tv"
     }
   }
 }

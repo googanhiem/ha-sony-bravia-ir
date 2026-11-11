@@ -3,8 +3,10 @@
 import pytest
 
 from custom_components.sony_bravia_ir.const import (
+    CONF_GENERATION,
     CONF_INFRARED_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
+    CONF_MODEL,
     DOMAIN,
 )
 from homeassistant.config_entries import SOURCE_USER
@@ -24,7 +26,7 @@ pytestmark = pytest.mark.usefixtures(
     [
         pytest.param(
             {CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID},
-            "Sony KDL-42W653A via Test IR emitter",
+            "Sony Bravia TV via Test IR emitter",
             id="emitter_only",
         ),
         pytest.param(
@@ -32,12 +34,12 @@ pytestmark = pytest.mark.usefixtures(
                 CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID,
                 CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID,
             },
-            "Sony KDL-42W653A via Test IR emitter",
+            "Sony Bravia TV via Test IR emitter",
             id="emitter_and_receiver",
         ),
         pytest.param(
             {CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID},
-            "Sony KDL-42W653A via Test IR receiver",
+            "Sony Bravia TV via Test IR receiver",
             id="receiver_only",
         ),
     ],
@@ -57,7 +59,27 @@ async def test_user_flow(
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == expected_title
+    # The generation defaults to Android TV / Google TV.
+    assert result["data"] == {CONF_GENERATION: "android", **user_input}
+
+
+async def test_user_flow_with_model(hass: HomeAssistant) -> None:
+    """Test the model and generation end up in the entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    user_input = {
+        CONF_GENERATION: "classic",
+        CONF_MODEL: "KDL-42W653A",
+        CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID,
+    }
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input=user_input
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Sony Bravia KDL-42W653A via Test IR emitter"
     assert result["data"] == user_input
+    assert result["result"].version == 2
 
 
 async def test_user_flow_requires_entity(hass: HomeAssistant) -> None:
@@ -111,12 +133,19 @@ async def test_reconfigure_keeps_same_entities(
     assert result["step_id"] == "reconfigure"
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], user_input={CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}
+        result["flow_id"],
+        user_input={
+            CONF_GENERATION: "classic",
+            CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID,
+        },
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
-    # The cleared receiver is removed from the entry.
-    assert dict(init_integration.data) == {CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}
+    # The cleared receiver and model are removed from the entry.
+    assert dict(init_integration.data) == {
+        CONF_GENERATION: "classic",
+        CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID,
+    }
 
 
 async def test_reconfigure_requires_entity(
@@ -136,7 +165,9 @@ async def test_reconfigure_duplicate(
 ) -> None:
     """Test reconfigure aborts when another entry uses the emitter."""
     other = MockConfigEntry(
-        domain=DOMAIN, data={CONF_INFRARED_ENTITY_ID: "infrared.other"}
+        domain=DOMAIN,
+        version=2,
+        data={CONF_GENERATION: "android", CONF_INFRARED_ENTITY_ID: "infrared.other"},
     )
     other.add_to_hass(hass)
     result = await other.start_reconfigure_flow(hass)

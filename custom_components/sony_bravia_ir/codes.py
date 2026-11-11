@@ -1,15 +1,17 @@
-"""Sony SIRC IR codes for the Sony Bravia KDL-42W653A.
+"""Sony SIRC IR codes for Sony Bravia televisions.
 
-Sony Bravia sets from the 2013 generation (W6xxA, W8xxA, ...) mix three
-flavours of the Sony SIRC protocol:
+Bravia sets have kept one IR command set for well over a decade, from the
+KDL- models up to current Android TV / Google TV KD- and XR- models. It mixes
+two flavours of the Sony SIRC protocol:
 
 - 12-bit SIRC on address 1 (5 address bits) for the classic TV keys.
-- 15-bit SIRC on addresses 0x1A, 0x97 and 0xA4 (8 address bits) for the
-  keys added later (discrete HDMI inputs, transport keys, colour keys, ...).
+- 15-bit SIRC on addresses 0x1A, 0x97, 0xA4 and 0xC4 (8 address bits) for the
+  keys added later (discrete HDMI inputs, transport keys, colour keys, app
+  keys, ...).
 
-The codes below match the IRCC table these sets report over their network
-API, which encodes exactly the SIRC address/command pairs of the bundled
-RM-ED0xx remote.
+The codes match the IRCC table Bravia sets report over their network API,
+which encodes exactly the SIRC address/command pairs of their remotes. Not
+every set has every key; unknown codes are simply ignored by the TV.
 
 Sony receivers only accept a command after seeing the same frame several
 times, so every command is sent as three consecutive frames, just like a
@@ -31,6 +33,7 @@ _ADDR_TV = (0x01, 5)
 _ADDR_INPUT = (0x1A, 8)
 _ADDR_EXT = (0x97, 8)
 _ADDR_GUIDE = (0xA4, 8)
+_ADDR_APPS = (0xC4, 8)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +72,7 @@ class SonyRepeatedCommand(SonyCommand):
 
 @unique
 class SonyBraviaCode(Enum):
-    """IR codes of the Sony KDL-42W653A as (address, address_bits, command)."""
+    """Sony Bravia IR codes as (address, address_bits, command)."""
 
     # Power
     POWER = (*_ADDR_TV, 0x15)
@@ -118,6 +121,13 @@ class SonyBraviaCode(Enum):
     SYNC_MENU = (*_ADDR_INPUT, 0x58)
     SEN = (*_ADDR_INPUT, 0x7D)
     NETFLIX = (*_ADDR_INPUT, 0x7C)
+    DISCOVER = (*_ADDR_INPUT, 0x73)
+
+    # Android TV / Google TV keys
+    YOUTUBE = (*_ADDR_APPS, 0x47)
+    GOOGLE_PLAY = (*_ADDR_APPS, 0x46)
+    ACTION_MENU = (*_ADDR_APPS, 0x4B)
+    HELP = (*_ADDR_APPS, 0x4D)
 
     # Colour keys
     RED = (*_ADDR_EXT, 0x25)
@@ -167,7 +177,7 @@ _FRAME_TO_CODE: dict[SircFrame, SonyBraviaCode] = {
 }
 
 TV_ADDRESSES: frozenset[tuple[int, int]] = frozenset(
-    {_ADDR_TV, _ADDR_INPUT, _ADDR_EXT, _ADDR_GUIDE}
+    {_ADDR_TV, _ADDR_INPUT, _ADDR_EXT, _ADDR_GUIDE, _ADDR_APPS}
 )
 
 # SIRC decoding tolerances, in microseconds.

@@ -12,14 +12,35 @@ from homeassistant.components.media_player import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .codes import SonyBraviaCode
+from .codes import SIRC_FRAMES_PER_COMMAND, SonyBraviaCode, SonyRepeatedCommand
 from .const import CONF_INFRARED_ENTITY_ID, DOMAIN
 from .entity import SonyBraviaIrEntity
 
+try:  # Home Assistant 2026.11+ validates with probatio.
+    import probatio as vol
+except ImportError:  # pragma: no cover - older Home Assistant releases
+    import voluptuous as vol
+
 PARALLEL_UPDATES = 1
+
+SERVICE_SEND_SIRC = "send_sirc"
+ATTR_ADDRESS = "address"
+ATTR_ADDRESS_BITS = "address_bits"
+ATTR_COMMAND = "command"
+ATTR_FRAMES = "frames"
+
+SEND_SIRC_SCHEMA = {
+    vol.Required(ATTR_ADDRESS): vol.All(vol.Coerce(int), vol.Range(min=0, max=0x1FFF)),
+    vol.Required(ATTR_ADDRESS_BITS): vol.All(vol.Coerce(int), vol.In([5, 8, 13])),
+    vol.Required(ATTR_COMMAND): vol.All(vol.Coerce(int), vol.Range(min=0, max=0x7F)),
+    vol.Optional(ATTR_FRAMES, default=SIRC_FRAMES_PER_COMMAND): vol.All(
+        vol.Coerce(int), vol.Range(min=1, max=20)
+    ),
+}
 
 SOURCE_TO_CODE: dict[str, SonyBraviaCode] = {
     "TV": SonyBraviaCode.TV,
@@ -39,6 +60,11 @@ async def async_setup_entry(
     if not (infrared_entity_id := entry.data.get(CONF_INFRARED_ENTITY_ID)):
         return
     async_add_entities([SonyBraviaIrMediaPlayer(entry, infrared_entity_id)])
+
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        SERVICE_SEND_SIRC, SEND_SIRC_SCHEMA, "async_send_sirc"
+    )
 
 
 class SonyBraviaIrMediaPlayer(
@@ -155,3 +181,22 @@ class SonyBraviaIrMediaPlayer(
         await self._send(code)
         self._attr_source = source
         self.async_write_ha_state()
+
+    async def async_send_sirc(
+        self, address: int, address_bits: int, command: int, frames: int
+    ) -> None:
+        """Send an arbitrary Sony SIRC code."""
+        try:
+            ir_command = SonyRepeatedCommand(
+                address=address,
+                address_bits=address_bits,
+                command=command,
+                frames=frames,
+            )
+        except ValueError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sirc",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self._send_command(ir_command)

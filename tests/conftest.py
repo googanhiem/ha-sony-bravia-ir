@@ -8,9 +8,12 @@ from infrared_protocols.commands import Command as InfraredCommand
 import pytest
 
 from custom_components.sony_bravia_ir.const import (
+    CONF_GENERATION,
     CONF_INFRARED_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
+    CONF_MODEL,
     DOMAIN,
+    BraviaGeneration,
 )
 from homeassistant.components.infrared import (
     DATA_COMPONENT,
@@ -95,15 +98,28 @@ def has_receiver() -> bool:
 
 
 @pytest.fixture
-def mock_config_entry(has_receiver: bool) -> MockConfigEntry:
+def generation() -> BraviaGeneration:
+    """Return the TV generation of the config entry."""
+    return BraviaGeneration.ANDROID
+
+
+@pytest.fixture
+def mock_config_entry(
+    has_receiver: bool, generation: BraviaGeneration
+) -> MockConfigEntry:
     """Return a mock config entry."""
-    data: dict[str, Any] = {CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}
+    data: dict[str, Any] = {
+        CONF_GENERATION: generation,
+        CONF_MODEL: "KD-55X85J",
+        CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID,
+    }
     if has_receiver:
         data[CONF_INFRARED_RECEIVER_ENTITY_ID] = RECEIVER_ENTITY_ID
     return MockConfigEntry(
         domain=DOMAIN,
         entry_id=ENTRY_ID,
-        title="Sony KDL-42W653A via Test IR emitter",
+        version=2,
+        title="Sony Bravia KD-55X85J via Test IR emitter",
         data=data,
     )
 

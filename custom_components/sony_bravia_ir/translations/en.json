@@ -10,25 +10,33 @@
     },
     "step": {
       "user": {
-        "title": "Set up Sony Bravia KDL-42W653A",
-        "description": "Select at least one infrared emitter or receiver to use with your Sony TV.",
+        "title": "Set up Sony Bravia TV",
+        "description": "Select your TV type and at least one infrared emitter or receiver.",
         "data": {
+          "generation": "TV generation",
+          "model": "Model",
           "infrared_entity_id": "Infrared emitter",
           "infrared_receiver_entity_id": "Infrared receiver"
         },
         "data_description": {
+          "generation": "Which kind of Bravia remote your TV came with. This decides which buttons are enabled by default.",
+          "model": "Optional: the model number, e.g. KD-55X85J. Only used to name the device.",
           "infrared_entity_id": "The infrared emitter used to send commands to the TV.",
           "infrared_receiver_entity_id": "Optional: an infrared receiver that picks up the original Sony remote, so its key presses show up as events."
         }
       },
       "reconfigure": {
         "title": "Reconfigure Sony Bravia TV",
-        "description": "Change the infrared entities used by your Sony TV.",
+        "description": "Change the TV type and infrared entities used by your Sony TV.",
         "data": {
+          "generation": "TV generation",
+          "model": "Model",
           "infrared_entity_id": "Infrared emitter",
           "infrared_receiver_entity_id": "Infrared receiver"
         },
         "data_description": {
+          "generation": "Which kind of Bravia remote your TV came with. This decides which buttons are enabled by default.",
+          "model": "Optional: the model number, e.g. KD-55X85J. Only used to name the device.",
           "infrared_entity_id": "The infrared emitter used to send commands to the TV.",
           "infrared_receiver_entity_id": "Optional: an infrared receiver that picks up the original Sony remote, so its key presses show up as events."
         }
@@ -195,6 +203,21 @@
       },
       "next": {
         "name": "Next"
+      },
+      "youtube": {
+        "name": "YouTube"
+      },
+      "google_play": {
+        "name": "Google Play"
+      },
+      "action_menu": {
+        "name": "Action menu"
+      },
+      "help": {
+        "name": "Help"
+      },
+      "discover": {
+        "name": "Discover"
       }
     },
     "event": {
@@ -259,6 +282,11 @@
               "fast_forward": "Fast forward",
               "previous": "Previous",
               "next": "Next",
+              "discover": "Discover",
+              "youtube": "YouTube",
+              "google_play": "Google Play",
+              "action_menu": "Action menu",
+              "help": "Help",
               "unknown": "Unknown"
             }
           }
@@ -269,6 +297,41 @@
   "exceptions": {
     "invalid_source": {
       "message": "Unknown source {source}."
+    },
+    "invalid_sirc": {
+      "message": "Invalid Sony SIRC code: {error}."
+    }
+  },
+  "selector": {
+    "generation": {
+      "options": {
+        "android": "Android TV / Google TV (2015 and newer)",
+        "classic": "Classic Bravia (before 2015)"
+      }
+    }
+  },
+  "services": {
+    "send_sirc": {
+      "name": "Send SIRC code",
+      "description": "Sends a raw Sony SIRC code to the TV, for keys that have no button.",
+      "fields": {
+        "address": {
+          "name": "Address",
+          "description": "SIRC device address, as shown by the received command event."
+        },
+        "address_bits": {
+          "name": "Address bits",
+          "description": "5 for 12-bit, 8 for 15-bit or 13 for 20-bit SIRC."
+        },
+        "command": {
+          "name": "Command",
+          "description": "SIRC command (0-127)."
+        },
+        "frames": {
+          "name": "Frames",
+          "description": "How many times the frame is repeated. Sony TVs need at least 3."
+        }
+      }
     }
   }
 }

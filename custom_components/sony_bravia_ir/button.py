@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .codes import SonyBraviaCode
-from .const import CONF_INFRARED_ENTITY_ID
+from .const import CONF_GENERATION, CONF_INFRARED_ENTITY_ID, BraviaGeneration
 from .entity import SonyBraviaIrEntity
 
 PARALLEL_UPDATES = 1
@@ -21,16 +21,27 @@ class SonyBraviaIrButtonEntityDescription(ButtonEntityDescription):
     """Describes a Sony Bravia IR button entity."""
 
     command_code: SonyBraviaCode
+    # Generations whose remote has this key; it is disabled by default on others.
+    enabled_on: frozenset[BraviaGeneration]
+
+
+_ALL = frozenset(BraviaGeneration)
+_CLASSIC = frozenset({BraviaGeneration.CLASSIC})
+_ANDROID = frozenset({BraviaGeneration.ANDROID})
+_NONE: frozenset[BraviaGeneration] = frozenset()
 
 
 def _button(
-    key: str, code: SonyBraviaCode, *, enabled: bool = True
+    key: str,
+    code: SonyBraviaCode,
+    *,
+    enabled_on: frozenset[BraviaGeneration] = _ALL,
 ) -> SonyBraviaIrButtonEntityDescription:
     return SonyBraviaIrButtonEntityDescription(
         key=key,
         translation_key=key,
         command_code=code,
-        entity_registry_enabled_default=enabled,
+        enabled_on=enabled_on,
     )
 
 
@@ -56,9 +67,13 @@ BUTTON_DESCRIPTIONS: tuple[SonyBraviaIrButtonEntityDescription, ...] = (
     _button("info", SonyBraviaCode.DISPLAY),
     _button("guide", SonyBraviaCode.GUIDE),
     _button("sync_menu", SonyBraviaCode.SYNC_MENU),
-    _button("sen", SonyBraviaCode.SEN),
-    # Not on the KDL-42W653A remote, but some firmware versions accept it.
-    _button("netflix", SonyBraviaCode.NETFLIX, enabled=False),
+    _button("sen", SonyBraviaCode.SEN, enabled_on=_CLASSIC),
+    _button("netflix", SonyBraviaCode.NETFLIX, enabled_on=_ANDROID),
+    _button("youtube", SonyBraviaCode.YOUTUBE, enabled_on=_ANDROID),
+    _button("google_play", SonyBraviaCode.GOOGLE_PLAY, enabled_on=_ANDROID),
+    _button("action_menu", SonyBraviaCode.ACTION_MENU, enabled_on=_ANDROID),
+    _button("help", SonyBraviaCode.HELP, enabled_on=_NONE),
+    _button("discover", SonyBraviaCode.DISCOVER, enabled_on=_NONE),
     _button("up", SonyBraviaCode.NAV_UP),
     _button("down", SonyBraviaCode.NAV_DOWN),
     _button("left", SonyBraviaCode.NAV_LEFT),
@@ -79,12 +94,12 @@ BUTTON_DESCRIPTIONS: tuple[SonyBraviaIrButtonEntityDescription, ...] = (
     _button("yellow", SonyBraviaCode.YELLOW),
     _button("blue", SonyBraviaCode.BLUE),
     _button("picture_mode", SonyBraviaCode.PICTURE_MODE),
-    _button("picture_off", SonyBraviaCode.PICTURE_OFF, enabled=False),
+    _button("picture_off", SonyBraviaCode.PICTURE_OFF, enabled_on=_NONE),
     _button("wide", SonyBraviaCode.WIDE),
     _button("audio", SonyBraviaCode.AUDIO),
     _button("subtitle", SonyBraviaCode.SUBTITLE),
-    _button("teletext", SonyBraviaCode.TELETEXT),
-    _button("jump", SonyBraviaCode.JUMP),
+    _button("teletext", SonyBraviaCode.TELETEXT, enabled_on=_CLASSIC),
+    _button("jump", SonyBraviaCode.JUMP, enabled_on=_CLASSIC),
     _button("rewind", SonyBraviaCode.REWIND),
     _button("fast_forward", SonyBraviaCode.FAST_FORWARD),
     _button("previous", SonyBraviaCode.PREVIOUS),
@@ -100,8 +115,11 @@ async def async_setup_entry(
     """Set up Sony Bravia IR buttons from a config entry."""
     if not (infrared_entity_id := entry.data.get(CONF_INFRARED_ENTITY_ID)):
         return
+    generation = BraviaGeneration(
+        entry.data.get(CONF_GENERATION, BraviaGeneration.ANDROID)
+    )
     async_add_entities(
-        SonyBraviaIrButton(entry, infrared_entity_id, description)
+        SonyBraviaIrButton(entry, infrared_entity_id, description, generation)
         for description in BUTTON_DESCRIPTIONS
     )
 
@@ -118,11 +136,15 @@ class SonyBraviaIrButton(
         entry: ConfigEntry,
         infrared_entity_id: str,
         description: SonyBraviaIrButtonEntityDescription,
+        generation: BraviaGeneration,
     ) -> None:
         """Initialize the button."""
         super().__init__(entry, unique_id_suffix=description.key)
         self._infrared_emitter_entity_id = infrared_entity_id
         self.entity_description = description
+        self._attr_entity_registry_enabled_default = (
+            generation in description.enabled_on
+        )
 
     @override
     async def async_press(self) -> None:

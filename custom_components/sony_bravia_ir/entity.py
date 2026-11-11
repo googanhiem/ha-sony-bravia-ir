@@ -4,7 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DEVICE_NAME, DOMAIN, MANUFACTURER, MODEL
+from .const import CONF_MODEL, DEVICE_NAME, DOMAIN, MANUFACTURER
 
 
 class SonyBraviaIrEntity(Entity):
@@ -19,5 +19,5 @@ class SonyBraviaIrEntity(Entity):
             identifiers={(DOMAIN, entry.entry_id)},
             name=DEVICE_NAME,
             manufacturer=MANUFACTURER,
-            model=MODEL,
+            model=entry.data.get(CONF_MODEL) or "Bravia",
         )

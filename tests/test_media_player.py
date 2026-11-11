@@ -4,7 +4,8 @@ from typing import Any
 
 import pytest
 
-from custom_components.sony_bravia_ir.codes import SonyBraviaCode
+from custom_components.sony_bravia_ir.codes import SonyBraviaCode, SonyRepeatedCommand
+from custom_components.sony_bravia_ir.const import DOMAIN
 from homeassistant.components.media_player import (
     ATTR_INPUT_SOURCE,
     ATTR_INPUT_SOURCE_LIST,
@@ -68,7 +69,7 @@ async def test_entity(
     assert entity_entry.unique_id == f"{mock_config_entry.entry_id}_media_player"
     device = device_registry.async_get(entity_entry.device_id)
     assert device.manufacturer == "Sony"
-    assert device.model == "KDL-42W653A"
+    assert device.model == "KD-55X85J"
 
 
 @pytest.mark.parametrize(
@@ -194,6 +195,7 @@ async def test_availability_follows_emitter(hass: HomeAssistant) -> None:
     [
         MockConfigEntry(
             domain="sony_bravia_ir",
+            version=2,
             data={"infrared_receiver_entity_id": "infrared.test_ir_receiver"},
         )
     ],
@@ -202,3 +204,61 @@ async def test_availability_follows_emitter(hass: HomeAssistant) -> None:
 async def test_no_emitter_no_media_player(hass: HomeAssistant) -> None:
     """Test no media player is created without an emitter."""
     assert hass.states.get(ENTITY_ID) is None
+
+
+@pytest.mark.parametrize(
+    ("service_data", "expected"),
+    [
+        (
+            {"address": 0xC4, "address_bits": 8, "command": 0x47},
+            (0xC4, 8, 0x47, 3),
+        ),
+        (
+            {"address": "1", "address_bits": "5", "command": 21, "frames": 5},
+            (0x01, 5, 0x15, 5),
+        ),
+    ],
+)
+@pytest.mark.usefixtures("init_integration")
+async def test_send_sirc(
+    hass: HomeAssistant,
+    mock_infrared_emitter_entity: MockInfraredEmitterEntity,
+    service_data: dict[str, Any],
+    expected: tuple[int, int, int, int],
+) -> None:
+    """Test sending an arbitrary SIRC code."""
+    await hass.services.async_call(
+        DOMAIN,
+        "send_sirc",
+        {ATTR_ENTITY_ID: ENTITY_ID, **service_data},
+        blocking=True,
+    )
+    [command] = mock_infrared_emitter_entity.send_command_calls
+    assert isinstance(command, SonyRepeatedCommand)
+    assert (
+        command.address,
+        command.address_bits,
+        command.command,
+        command.frames,
+    ) == expected
+    assert len(command.get_raw_timings()) == expected[3] * (2 + 2 * (7 + expected[1]))
+
+
+@pytest.mark.usefixtures("init_integration")
+async def test_send_sirc_address_out_of_range(
+    hass: HomeAssistant, mock_infrared_emitter_entity: MockInfraredEmitterEntity
+) -> None:
+    """Test an address too large for its bit width is rejected."""
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "send_sirc",
+            {
+                ATTR_ENTITY_ID: ENTITY_ID,
+                "address": 0x97,
+                "address_bits": 5,
+                "command": 1,
+            },
+            blocking=True,
+        )
+    assert mock_infrared_emitter_entity.send_command_calls == []
