@@ -15,6 +15,12 @@ also listen to the original Sony remote through an infrared receiver.
 > set and should work, but they are untested. Reports from other models,
 > working or not, are welcome as issues.
 
+## Screenshot
+
+The **Sony Bravia TV** device page in Home Assistant, controlling a Sony KDL-42W653A:
+
+<img src="docs/screenshot.png" alt="Sony Bravia TV device page in Home Assistant" width="700">
+
 ## Requirements
 
 - Home Assistant **2026.8** or newer. It needs the `infrared` integration
