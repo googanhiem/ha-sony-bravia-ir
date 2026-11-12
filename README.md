@@ -1,10 +1,3 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="custom_components/sony_bravia_ir/brand/dark_logo.png">
-    <img src="custom_components/sony_bravia_ir/brand/logo.png" alt="Sony" width="240">
-  </picture>
-</p>
-
 # Sony Bravia IR for Home Assistant
 
 A Home Assistant custom integration that controls **Sony Bravia** TVs over
@@ -209,7 +202,8 @@ uv pip install --python .venv -r requirements_test.txt
 Sony, Bravia and the Sony logo are trademarks of Sony Group Corporation. The
 logo in `brand/` is the Sony image from the
 [Home Assistant brands repository](https://github.com/home-assistant/brands/tree/master/core_brands/sony)
-and is used only to identify the devices this integration controls. This is
+and is only used as this integration's icon on Home Assistant's
+integrations page, to identify the devices it controls. This is
 an unofficial, community project and is not affiliated with or endorsed by
 Sony.
 
