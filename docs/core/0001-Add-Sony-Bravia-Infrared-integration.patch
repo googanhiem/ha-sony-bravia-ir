@@ -1,0 +1,4349 @@
+From 65fe4aab21dbda141bd6b2f5e554627797c50582 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 16 Nov 2026 10:23:05 +0000
+Subject: [PATCH] Add Sony Bravia Infrared integration
+
+Controls Sony Bravia TVs through an infrared emitter and fires events for
+key presses picked up by an infrared receiver. Uses the SonyTVCode command
+set from infrared-protocols, with button keys and event types named after
+the library's codes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RrPaBaU6zM6AhoWcyUefct
+---
+ .strict-typing                                |    1 +
+ CODEOWNERS                                    |    2 +
+ homeassistant/brands/sony.json                |    3 +-
+ .../sony_bravia_infrared/__init__.py          |   17 +
+ .../components/sony_bravia_infrared/button.py |  102 +
+ .../sony_bravia_infrared/config_flow.py       |  123 +
+ .../components/sony_bravia_infrared/const.py  |    5 +
+ .../sony_bravia_infrared/diagnostics.py       |   13 +
+ .../components/sony_bravia_infrared/entity.py |   36 +
+ .../components/sony_bravia_infrared/event.py  |  100 +
+ .../sony_bravia_infrared/icons.json           |  131 ++
+ .../sony_bravia_infrared/manifest.json        |   13 +
+ .../sony_bravia_infrared/media_player.py      |   95 +
+ .../sony_bravia_infrared/quality_scale.yaml   |  120 +
+ .../sony_bravia_infrared/strings.json         |  213 ++
+ homeassistant/generated/config_flows.py       |    1 +
+ homeassistant/generated/integrations.json     |   12 +
+ mypy.ini                                      |   10 +
+ .../sony_bravia_infrared/__init__.py          |   18 +
+ .../sony_bravia_infrared/conftest.py          |   74 +
+ .../snapshots/test_button.ambr                | 2001 +++++++++++++++++
+ .../snapshots/test_diagnostics.ambr           |    7 +
+ .../snapshots/test_event.ambr                 |  139 ++
+ .../snapshots/test_media_player.ambr          |   55 +
+ .../sony_bravia_infrared/test_button.py       |  113 +
+ .../sony_bravia_infrared/test_config_flow.py  |  285 +++
+ .../sony_bravia_infrared/test_diagnostics.py  |   21 +
+ .../sony_bravia_infrared/test_event.py        |  198 ++
+ .../sony_bravia_infrared/test_init.py         |   70 +
+ .../sony_bravia_infrared/test_media_player.py |   90 +
+ 30 files changed, 4067 insertions(+), 1 deletion(-)
+ create mode 100644 homeassistant/components/sony_bravia_infrared/__init__.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/button.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/config_flow.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/const.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/diagnostics.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/entity.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/event.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/icons.json
+ create mode 100644 homeassistant/components/sony_bravia_infrared/manifest.json
+ create mode 100644 homeassistant/components/sony_bravia_infrared/media_player.py
+ create mode 100644 homeassistant/components/sony_bravia_infrared/quality_scale.yaml
+ create mode 100644 homeassistant/components/sony_bravia_infrared/strings.json
+ create mode 100644 tests/components/sony_bravia_infrared/__init__.py
+ create mode 100644 tests/components/sony_bravia_infrared/conftest.py
+ create mode 100644 tests/components/sony_bravia_infrared/snapshots/test_button.ambr
+ create mode 100644 tests/components/sony_bravia_infrared/snapshots/test_diagnostics.ambr
+ create mode 100644 tests/components/sony_bravia_infrared/snapshots/test_event.ambr
+ create mode 100644 tests/components/sony_bravia_infrared/snapshots/test_media_player.ambr
+ create mode 100644 tests/components/sony_bravia_infrared/test_button.py
+ create mode 100644 tests/components/sony_bravia_infrared/test_config_flow.py
+ create mode 100644 tests/components/sony_bravia_infrared/test_diagnostics.py
+ create mode 100644 tests/components/sony_bravia_infrared/test_event.py
+ create mode 100644 tests/components/sony_bravia_infrared/test_init.py
+ create mode 100644 tests/components/sony_bravia_infrared/test_media_player.py
+
+diff --git a/.strict-typing b/.strict-typing
+index 9f7d5f6e..a97965cf 100644
+--- a/.strict-typing
++++ b/.strict-typing
+@@ -595,6 +595,7 @@ homeassistant.components.solaredge_modbus.*
+ homeassistant.components.solarlog.*
+ homeassistant.components.solyx_energy_cloud.*
+ homeassistant.components.sonarr.*
++homeassistant.components.sony_bravia_infrared.*
+ homeassistant.components.spaceapi.*
+ homeassistant.components.specialized_turbo.*
+ homeassistant.components.speedtestdotnet.*
+diff --git a/CODEOWNERS b/CODEOWNERS
+index 000bbaba..3834e56f 100644
+--- a/CODEOWNERS
++++ b/CODEOWNERS
+@@ -1862,6 +1862,8 @@ AGENTS.md @home-assistant/core
+ /tests/components/songpal/ @rytilahti @shenxn
+ /homeassistant/components/sonos/ @peterager @jjlawren
+ /tests/components/sonos/ @peterager @jjlawren
++/homeassistant/components/sony_bravia_infrared/ @googanhiem
++/tests/components/sony_bravia_infrared/ @googanhiem
+ /homeassistant/components/soundtouch/ @kroimon
+ /tests/components/soundtouch/ @kroimon
+ /homeassistant/components/spaceapi/ @fabaff
+diff --git a/homeassistant/brands/sony.json b/homeassistant/brands/sony.json
+index 27bc26a3..cd46f1ea 100644
+--- a/homeassistant/brands/sony.json
++++ b/homeassistant/brands/sony.json
+@@ -6,6 +6,7 @@
+     "ps4",
+     "sony_projector",
+     "songpal",
+-    "playstation_network"
++    "playstation_network",
++    "sony_bravia_infrared"
+   ]
+ }
+diff --git a/homeassistant/components/sony_bravia_infrared/__init__.py b/homeassistant/components/sony_bravia_infrared/__init__.py
+new file mode 100644
+index 00000000..d82b6d6b
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/__init__.py
+@@ -0,0 +1,17 @@
++"""The Sony Bravia Infrared integration."""
++
++from homeassistant.config_entries import ConfigEntry
++from homeassistant.const import Platform
++from homeassistant.core import HomeAssistant
++
++PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.EVENT, Platform.MEDIA_PLAYER]
++
++
++async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
++    """Set up Sony Bravia Infrared from a config entry."""
++    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
++
++
++async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
++    """Unload a config entry."""
++    await hass.config_entries.async_unload_platforms_or_raise(entry, PLATFORMS)
+diff --git a/homeassistant/components/sony_bravia_infrared/button.py b/homeassistant/components/sony_bravia_infrared/button.py
+new file mode 100644
+index 00000000..243121c5
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/button.py
+@@ -0,0 +1,102 @@
++"""Button platform for the Sony Bravia Infrared integration."""
++
++from dataclasses import dataclass
++from typing import override
++
++from infrared_protocols.codes.sony.tv import SonyTVCode
++
++from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
++from homeassistant.components.infrared import InfraredEmitterConsumerEntity
++from homeassistant.config_entries import ConfigEntry
++from homeassistant.core import HomeAssistant
++from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
++
++from .const import CONF_INFRARED_ENTITY_ID
++from .entity import SonyBraviaIrEntity, sirc_command
++
++PARALLEL_UPDATES = 1
++
++# Keys that are less commonly automated, or not present on every remote.
++_DISABLED_BY_DEFAULT = {
++    SonyTVCode.SLEEP,
++    SonyTVCode.NUM_0,
++    SonyTVCode.NUM_1,
++    SonyTVCode.NUM_2,
++    SonyTVCode.NUM_3,
++    SonyTVCode.NUM_4,
++    SonyTVCode.NUM_5,
++    SonyTVCode.NUM_6,
++    SonyTVCode.NUM_7,
++    SonyTVCode.NUM_8,
++    SonyTVCode.NUM_9,
++    SonyTVCode.CHANNEL_DASH,
++    SonyTVCode.ENTER,
++    SonyTVCode.JUMP,
++    SonyTVCode.FAVORITES,
++    SonyTVCode.CLOSED_CAPTIONS,
++    SonyTVCode.AUDIO,
++    SonyTVCode.PICTURE,
++    SonyTVCode.TV,
++    SonyTVCode.HDMI,
++    SonyTVCode.COMPONENT,
++    SonyTVCode.RED,
++    SonyTVCode.GREEN,
++    SonyTVCode.YELLOW,
++    SonyTVCode.BLUE,
++}
++
++
++@dataclass(frozen=True, kw_only=True)
++class SonyBraviaIrButtonEntityDescription(ButtonEntityDescription):
++    """Describes a Sony Bravia Infrared button entity."""
++
++    command_code: SonyTVCode
++
++
++BUTTON_DESCRIPTIONS: tuple[SonyBraviaIrButtonEntityDescription, ...] = tuple(
++    SonyBraviaIrButtonEntityDescription(
++        key=code.name.lower(),
++        translation_key=code.name.lower(),
++        command_code=code,
++        entity_registry_enabled_default=code not in _DISABLED_BY_DEFAULT,
++    )
++    for code in SonyTVCode
++)
++
++
++async def async_setup_entry(
++    hass: HomeAssistant,
++    entry: ConfigEntry,
++    async_add_entities: AddConfigEntryEntitiesCallback,
++) -> None:
++    """Set up Sony Bravia Infrared buttons from a config entry."""
++    if not (infrared_entity_id := entry.data.get(CONF_INFRARED_ENTITY_ID)):
++        return
++    async_add_entities(
++        SonyBraviaIrButton(entry, infrared_entity_id, description)
++        for description in BUTTON_DESCRIPTIONS
++    )
++
++
++class SonyBraviaIrButton(
++    SonyBraviaIrEntity, InfraredEmitterConsumerEntity, ButtonEntity
++):
++    """A key on the Sony TV remote."""
++
++    entity_description: SonyBraviaIrButtonEntityDescription
++
++    def __init__(
++        self,
++        entry: ConfigEntry,
++        infrared_entity_id: str,
++        description: SonyBraviaIrButtonEntityDescription,
++    ) -> None:
++        """Initialize the button."""
++        super().__init__(entry, unique_id_suffix=description.key)
++        self._infrared_emitter_entity_id = infrared_entity_id
++        self.entity_description = description
++
++    @override
++    async def async_press(self) -> None:
++        """Press the button."""
++        await self._send_command(sirc_command(self.entity_description.command_code))
+diff --git a/homeassistant/components/sony_bravia_infrared/config_flow.py b/homeassistant/components/sony_bravia_infrared/config_flow.py
+new file mode 100644
+index 00000000..f42bd15f
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/config_flow.py
+@@ -0,0 +1,123 @@
++"""Config flow for the Sony Bravia Infrared integration."""
++
++from typing import TYPE_CHECKING, Any, override
++
++import probatio
++
++from homeassistant.components.infrared import (
++    DOMAIN as INFRARED_DOMAIN,
++    async_get_emitters,
++    async_get_receivers,
++)
++from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
++from homeassistant.core import HomeAssistant, callback
++from homeassistant.helpers import entity_registry as er
++from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
++
++from .const import CONF_INFRARED_ENTITY_ID, CONF_INFRARED_RECEIVER_ENTITY_ID, DOMAIN
++
++
++@callback
++def _infrared_entity_schema(hass: HomeAssistant) -> probatio.Schema:
++    """Return the emitter and receiver selection schema."""
++    return probatio.Schema(
++        {
++            probatio.Optional(CONF_INFRARED_ENTITY_ID): EntitySelector(
++                EntitySelectorConfig(
++                    domain=INFRARED_DOMAIN,
++                    include_entities=async_get_emitters(hass),
++                )
++            ),
++            probatio.Optional(CONF_INFRARED_RECEIVER_ENTITY_ID): EntitySelector(
++                EntitySelectorConfig(
++                    domain=INFRARED_DOMAIN,
++                    include_entities=async_get_receivers(hass),
++                )
++            ),
++        }
++    )
++
++
++def _has_infrared_entity(user_input: dict[str, Any]) -> bool:
++    """Return True if an emitter or a receiver was selected."""
++    return bool(
++        user_input.get(CONF_INFRARED_ENTITY_ID)
++        or user_input.get(CONF_INFRARED_RECEIVER_ENTITY_ID)
++    )
++
++
++class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
++    """Handle a config flow for Sony Bravia Infrared."""
++
++    @callback
++    def _async_has_infrared_entities(self) -> bool:
++        """Return True if any infrared emitter or receiver exists."""
++        return bool(async_get_emitters(self.hass) or async_get_receivers(self.hass))
++
++    @callback
++    def _async_abort_infrared_entities_match(self, user_input: dict[str, Any]) -> None:
++        """Abort if another entry already uses one of these infrared entities."""
++        for key in (CONF_INFRARED_ENTITY_ID, CONF_INFRARED_RECEIVER_ENTITY_ID):
++            if entity_id := user_input.get(key):
++                self._async_abort_entries_match({key: entity_id})
++
++    def _entity_name(self, entity_id: str) -> str:
++        """Return the name of an infrared entity for the entry title."""
++        entry = er.async_get(self.hass).async_get(entity_id)
++        if entry is None:
++            return entity_id
++        return entry.name or entry.original_name or entity_id
++
++    @override
++    async def async_step_user(
++        self, user_input: dict[str, Any] | None = None
++    ) -> ConfigFlowResult:
++        """Handle the infrared entity selection."""
++        if not self._async_has_infrared_entities():
++            return self.async_abort(reason="no_infrared_entities")
++
++        errors: dict[str, str] = {}
++        if user_input is not None:
++            if _has_infrared_entity(user_input):
++                self._async_abort_infrared_entities_match(user_input)
++                title_entity_id = user_input.get(
++                    CONF_INFRARED_ENTITY_ID
++                ) or user_input.get(CONF_INFRARED_RECEIVER_ENTITY_ID)
++                if TYPE_CHECKING:
++                    assert title_entity_id is not None
++                return self.async_create_entry(
++                    title=f"Sony Bravia TV via {self._entity_name(title_entity_id)}",
++                    data=user_input,
++                )
++            errors["base"] = "missing_infrared_entity"
++
++        return self.async_show_form(
++            step_id="user",
++            data_schema=_infrared_entity_schema(self.hass),
++            errors=errors,
++        )
++
++    async def async_step_reconfigure(
++        self, user_input: dict[str, Any] | None = None
++    ) -> ConfigFlowResult:
++        """Handle reconfiguration of the infrared entities."""
++        entry = self._get_reconfigure_entry()
++        if not self._async_has_infrared_entities():
++            return self.async_abort(reason="no_infrared_entities")
++
++        errors: dict[str, str] = {}
++        if user_input is not None:
++            if _has_infrared_entity(user_input):
++                self._async_abort_infrared_entities_match(user_input)
++                # Replace rather than update the data, so a cleared optional
++                # selector removes that entity from the entry.
++                return self.async_update_reload_and_abort(entry, data=user_input)
++            errors["base"] = "missing_infrared_entity"
++
++        return self.async_show_form(
++            step_id="reconfigure",
++            data_schema=self.add_suggested_values_to_schema(
++                _infrared_entity_schema(self.hass), entry.data
++            ),
++            errors=errors,
++        )
+diff --git a/homeassistant/components/sony_bravia_infrared/const.py b/homeassistant/components/sony_bravia_infrared/const.py
+new file mode 100644
+index 00000000..98cb27ee
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/const.py
+@@ -0,0 +1,5 @@
++"""Constants for the Sony Bravia Infrared integration."""
++
++DOMAIN = "sony_bravia_infrared"
++CONF_INFRARED_ENTITY_ID = "infrared_entity_id"
++CONF_INFRARED_RECEIVER_ENTITY_ID = "infrared_receiver_entity_id"
+diff --git a/homeassistant/components/sony_bravia_infrared/diagnostics.py b/homeassistant/components/sony_bravia_infrared/diagnostics.py
+new file mode 100644
+index 00000000..d9cf59a3
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/diagnostics.py
+@@ -0,0 +1,13 @@
++"""Diagnostics platform for the Sony Bravia Infrared integration."""
++
++from typing import Any
++
++from homeassistant.config_entries import ConfigEntry
++from homeassistant.core import HomeAssistant
++
++
++async def async_get_config_entry_diagnostics(
++    hass: HomeAssistant, entry: ConfigEntry
++) -> dict[str, Any]:
++    """Return diagnostics for a config entry."""
++    return dict(entry.data)
+diff --git a/homeassistant/components/sony_bravia_infrared/entity.py b/homeassistant/components/sony_bravia_infrared/entity.py
+new file mode 100644
+index 00000000..340d71f0
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/entity.py
+@@ -0,0 +1,36 @@
++"""Common entity for the Sony Bravia Infrared integration."""
++
++from infrared_protocols.codes.sony.tv import SonyTVCode
++from infrared_protocols.commands import Command
++
++from homeassistant.config_entries import ConfigEntry
++from homeassistant.helpers.device_registry import DeviceInfo
++from homeassistant.helpers.entity import Entity
++
++from .const import DOMAIN
++
++# A key press on a Sony remote sends at least three identical frames, and some
++# sets ignore a single frame.
++SIRC_REPEAT_COUNT = 2
++
++
++def sirc_command(code: SonyTVCode) -> Command:
++    """Return the IR command for a key press of a Sony TV code."""
++    command = code.to_command()
++    command.repeat_count = SIRC_REPEAT_COUNT
++    return command
++
++
++class SonyBraviaIrEntity(Entity):
++    """Sony Bravia Infrared base entity providing common device info."""
++
++    _attr_has_entity_name = True
++
++    def __init__(self, entry: ConfigEntry, unique_id_suffix: str) -> None:
++        """Initialize the entity."""
++        self._attr_unique_id = f"{entry.entry_id}_{unique_id_suffix}"
++        self._attr_device_info = DeviceInfo(
++            identifiers={(DOMAIN, entry.entry_id)},
++            name="Sony Bravia TV",
++            manufacturer="Sony",
++        )
+diff --git a/homeassistant/components/sony_bravia_infrared/event.py b/homeassistant/components/sony_bravia_infrared/event.py
+new file mode 100644
+index 00000000..bdae7081
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/event.py
+@@ -0,0 +1,100 @@
++"""Event platform for the Sony Bravia Infrared integration."""
++
++import logging
++import time
++from typing import override
++
++from infrared_protocols.codes.sony.tv import (
++    SONY_TV_ADDRESS,
++    SONY_TV_ADDRESS_BITS,
++    SonyTVCode,
++)
++from infrared_protocols.commands.sony import SonyCommand
++
++from homeassistant.components.event import EventEntity
++from homeassistant.components.infrared import (
++    InfraredReceivedSignal,
++    InfraredReceiverConsumerEntity,
++)
++from homeassistant.config_entries import ConfigEntry
++from homeassistant.core import HomeAssistant, callback
++from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
++
++from .const import CONF_INFRARED_RECEIVER_ENTITY_ID
++from .entity import SonyBraviaIrEntity
++
++_LOGGER = logging.getLogger(__name__)
++
++PARALLEL_UPDATES = 0
++
++_EVENT_TYPE_UNKNOWN = "unknown"
++_EVENT_TYPES: list[str] = [
++    *(code.name.lower() for code in SonyTVCode),
++    _EVENT_TYPE_UNKNOWN,
++]
++
++# A Sony remote repeats the frame every 45 ms while a key is held, and many
++# receivers report each frame as its own signal.
++_REPEAT_WINDOW = 0.2
++
++
++async def async_setup_entry(
++    hass: HomeAssistant,
++    entry: ConfigEntry,
++    async_add_entities: AddConfigEntryEntitiesCallback,
++) -> None:
++    """Set up the Sony Bravia Infrared event entity from a config entry."""
++    if not (receiver_entity_id := entry.data.get(CONF_INFRARED_RECEIVER_ENTITY_ID)):
++        return
++    async_add_entities([SonyBraviaIrReceivedCommandEvent(entry, receiver_entity_id)])
++
++
++class SonyBraviaIrReceivedCommandEvent(
++    SonyBraviaIrEntity, InfraredReceiverConsumerEntity, EventEntity
++):
++    """Event entity that fires when a Sony TV remote key is received."""
++
++    _attr_translation_key = "received_command"
++    _attr_event_types = _EVENT_TYPES
++
++    def __init__(self, entry: ConfigEntry, receiver_entity_id: str) -> None:
++        """Initialize the event entity."""
++        super().__init__(entry, unique_id_suffix="received_command")
++        self._infrared_receiver_entity_id = receiver_entity_id
++        self._last_command: int | None = None
++        self._last_command_time = 0.0
++
++    @callback
++    @override
++    def _handle_signal(self, signal: InfraredReceivedSignal) -> None:
++        """Handle a received IR signal."""
++        sony_command = SonyCommand.from_raw_timings(signal.timings)
++        if (
++            sony_command is None
++            or sony_command.address != SONY_TV_ADDRESS
++            or sony_command.address_bits != SONY_TV_ADDRESS_BITS
++        ):
++            return
++
++        now = time.monotonic()
++        is_repeat = (
++            sony_command.command == self._last_command
++            and now - self._last_command_time < _REPEAT_WINDOW
++        )
++        self._last_command = sony_command.command
++        self._last_command_time = now
++        if is_repeat:
++            return
++
++        try:
++            event_type = SonyTVCode(sony_command.command).name.lower()
++        except ValueError:
++            event_type = _EVENT_TYPE_UNKNOWN
++
++        _LOGGER.debug(
++            "Received Sony TV IR command: %s (0x%02X)",
++            event_type,
++            sony_command.command,
++        )
++        self._trigger_event(event_type)
++        self.async_write_ha_state()
+diff --git a/homeassistant/components/sony_bravia_infrared/icons.json b/homeassistant/components/sony_bravia_infrared/icons.json
+new file mode 100644
+index 00000000..8c1f8141
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/icons.json
+@@ -0,0 +1,131 @@
++{
++  "entity": {
++    "button": {
++      "audio": {
++        "default": "mdi:surround-sound"
++      },
++      "blue": {
++        "default": "mdi:circle"
++      },
++      "channel_dash": {
++        "default": "mdi:minus"
++      },
++      "channel_down": {
++        "default": "mdi:arrow-down-bold"
++      },
++      "channel_up": {
++        "default": "mdi:arrow-up-bold"
++      },
++      "closed_captions": {
++        "default": "mdi:closed-caption"
++      },
++      "component": {
++        "default": "mdi:video-input-component"
++      },
++      "enter": {
++        "default": "mdi:keyboard-return"
++      },
++      "exit": {
++        "default": "mdi:exit-to-app"
++      },
++      "favorites": {
++        "default": "mdi:star"
++      },
++      "green": {
++        "default": "mdi:circle"
++      },
++      "hdmi": {
++        "default": "mdi:video-input-hdmi"
++      },
++      "home": {
++        "default": "mdi:home"
++      },
++      "info": {
++        "default": "mdi:information-outline"
++      },
++      "input": {
++        "default": "mdi:import"
++      },
++      "jump": {
++        "default": "mdi:swap-horizontal"
++      },
++      "mute": {
++        "default": "mdi:volume-mute"
++      },
++      "nav_down": {
++        "default": "mdi:arrow-down"
++      },
++      "nav_left": {
++        "default": "mdi:arrow-left"
++      },
++      "nav_right": {
++        "default": "mdi:arrow-right"
++      },
++      "nav_up": {
++        "default": "mdi:arrow-up"
++      },
++      "num_0": {
++        "default": "mdi:numeric-0"
++      },
++      "num_1": {
++        "default": "mdi:numeric-1"
++      },
++      "num_2": {
++        "default": "mdi:numeric-2"
++      },
++      "num_3": {
++        "default": "mdi:numeric-3"
++      },
++      "num_4": {
++        "default": "mdi:numeric-4"
++      },
++      "num_5": {
++        "default": "mdi:numeric-5"
++      },
++      "num_6": {
++        "default": "mdi:numeric-6"
++      },
++      "num_7": {
++        "default": "mdi:numeric-7"
++      },
++      "num_8": {
++        "default": "mdi:numeric-8"
++      },
++      "num_9": {
++        "default": "mdi:numeric-9"
++      },
++      "ok": {
++        "default": "mdi:checkbox-blank-circle-outline"
++      },
++      "picture": {
++        "default": "mdi:image"
++      },
++      "power": {
++        "default": "mdi:power"
++      },
++      "red": {
++        "default": "mdi:circle"
++      },
++      "sleep": {
++        "default": "mdi:sleep"
++      },
++      "tv": {
++        "default": "mdi:television-classic"
++      },
++      "volume_down": {
++        "default": "mdi:volume-minus"
++      },
++      "volume_up": {
++        "default": "mdi:volume-plus"
++      },
++      "yellow": {
++        "default": "mdi:circle"
++      }
++    },
++    "event": {
++      "received_command": {
++        "default": "mdi:remote-tv"
++      }
++    }
++  }
++}
+diff --git a/homeassistant/components/sony_bravia_infrared/manifest.json b/homeassistant/components/sony_bravia_infrared/manifest.json
+new file mode 100644
+index 00000000..70ade81e
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/manifest.json
+@@ -0,0 +1,13 @@
++{
++  "domain": "sony_bravia_infrared",
++  "name": "Sony Bravia Infrared",
++  "categories": ["media_entertainment.tv_streaming"],
++  "codeowners": ["@googanhiem"],
++  "config_flow": true,
++  "connectivity": ["infrared"],
++  "dependencies": ["infrared"],
++  "documentation": "https://www.home-assistant.io/integrations/sony_bravia_infrared",
++  "integration_type": "device",
++  "iot_class": "assumed_state",
++  "quality_scale": "gold"
++}
+diff --git a/homeassistant/components/sony_bravia_infrared/media_player.py b/homeassistant/components/sony_bravia_infrared/media_player.py
+new file mode 100644
+index 00000000..653e692c
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/media_player.py
+@@ -0,0 +1,95 @@
++"""Media player platform for the Sony Bravia Infrared integration."""
++
++from typing import override
++
++from infrared_protocols.codes.sony.tv import SonyTVCode
++
++from homeassistant.components.infrared import InfraredEmitterConsumerEntity
++from homeassistant.components.media_player import (
++    MediaPlayerDeviceClass,
++    MediaPlayerEntity,
++    MediaPlayerEntityFeature,
++    MediaPlayerState,
++)
++from homeassistant.config_entries import ConfigEntry
++from homeassistant.core import HomeAssistant
++from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
++
++from .const import CONF_INFRARED_ENTITY_ID
++from .entity import SonyBraviaIrEntity, sirc_command
++
++PARALLEL_UPDATES = 1
++
++
++async def async_setup_entry(
++    hass: HomeAssistant,
++    entry: ConfigEntry,
++    async_add_entities: AddConfigEntryEntitiesCallback,
++) -> None:
++    """Set up the Sony Bravia Infrared media player from a config entry."""
++    if not (infrared_entity_id := entry.data.get(CONF_INFRARED_ENTITY_ID)):
++        return
++    async_add_entities([SonyBraviaIrMediaPlayer(entry, infrared_entity_id)])
++
++
++class SonyBraviaIrMediaPlayer(
++    SonyBraviaIrEntity, InfraredEmitterConsumerEntity, MediaPlayerEntity
++):
++    """Sony Bravia TV controlled over infrared."""
++
++    _attr_name = None
++    _attr_assumed_state = True
++    _attr_device_class = MediaPlayerDeviceClass.TV
++    _attr_supported_features = (
++        MediaPlayerEntityFeature.TURN_ON
++        | MediaPlayerEntityFeature.TURN_OFF
++        | MediaPlayerEntityFeature.VOLUME_STEP
++        | MediaPlayerEntityFeature.VOLUME_MUTE
++        | MediaPlayerEntityFeature.NEXT_TRACK
++        | MediaPlayerEntityFeature.PREVIOUS_TRACK
++    )
++
++    def __init__(self, entry: ConfigEntry, infrared_entity_id: str) -> None:
++        """Initialize the media player."""
++        super().__init__(entry, unique_id_suffix="media_player")
++        self._infrared_emitter_entity_id = infrared_entity_id
++        self._attr_state = MediaPlayerState.ON
++
++    async def _send_code(self, code: SonyTVCode) -> None:
++        """Send a Sony TV code."""
++        await self._send_command(sirc_command(code))
++
++    @override
++    async def async_turn_on(self) -> None:
++        """Turn on the TV with the power toggle."""
++        await self._send_code(SonyTVCode.POWER)
++
++    @override
++    async def async_turn_off(self) -> None:
++        """Turn off the TV with the power toggle."""
++        await self._send_code(SonyTVCode.POWER)
++
++    @override
++    async def async_volume_up(self) -> None:
++        """Send volume up."""
++        await self._send_code(SonyTVCode.VOLUME_UP)
++
++    @override
++    async def async_volume_down(self) -> None:
++        """Send volume down."""
++        await self._send_code(SonyTVCode.VOLUME_DOWN)
++
++    @override
++    async def async_mute_volume(self, mute: bool) -> None:
++        """Toggle mute, as the TV has no discrete mute codes."""
++        await self._send_code(SonyTVCode.MUTE)
++
++    @override
++    async def async_media_next_track(self) -> None:
++        """Send channel up."""
++        await self._send_code(SonyTVCode.CHANNEL_UP)
++
++    @override
++    async def async_media_previous_track(self) -> None:
++        """Send channel down."""
++        await self._send_code(SonyTVCode.CHANNEL_DOWN)
+diff --git a/homeassistant/components/sony_bravia_infrared/quality_scale.yaml b/homeassistant/components/sony_bravia_infrared/quality_scale.yaml
+new file mode 100644
+index 00000000..d917e702
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/quality_scale.yaml
+@@ -0,0 +1,120 @@
++rules:
++  # Bronze
++  action-setup:
++    status: exempt
++    comment: |
++      This integration does not provide additional actions.
++  appropriate-polling:
++    status: exempt
++    comment: |
++      This integration does not poll.
++  brands: done
++  common-modules: done
++  config-flow-test-coverage: done
++  config-flow: done
++  dependency-transparency: done
++  docs-actions:
++    status: exempt
++    comment: |
++      This integration does not provide additional actions.
++  docs-conditions:
++    status: exempt
++    comment: This integration does not have any conditions.
++  docs-high-level-description: done
++  docs-installation-instructions: done
++  docs-removal-instructions: done
++  docs-triggers:
++    status: exempt
++    comment: This integration does not have any triggers.
++  entity-event-setup: done
++  entity-unique-id: done
++  has-entity-name: done
++  runtime-data:
++    status: exempt
++    comment: |
++      This integration does not store runtime data.
++  test-before-configure:
++    status: exempt
++    comment: |
++      This integration only proxies commands through an existing infrared
++      entity, so there is no connection to test in the config flow.
++  test-before-setup:
++    status: exempt
++    comment: |
++      This integration only proxies commands through an existing infrared
++      entity, so there is no separate connection to validate during setup.
++  unique-config-entry: done
++  # Silver
++  action-exceptions:
++    status: exempt
++    comment: |
++      This integration does not provide additional actions.
++  config-entry-unloading: done
++  docs-configuration-parameters:
++    status: exempt
++    comment: The integration has no configuration options.
++  docs-installation-parameters: done
++  entity-unavailable: done
++  integration-owner: done
++  log-when-unavailable: done
++  parallel-updates: done
++  reauthentication-flow:
++    status: exempt
++    comment: |
++      This integration does not require authentication.
++  test-coverage: done
++  # Gold
++  devices: done
++  diagnostics: done
++  discovery-update-info:
++    status: exempt
++    comment: |
++      This integration does not support discovery.
++  discovery:
++    status: exempt
++    comment: |
++      Infrared TVs cannot be discovered, so the integration is configured
++      manually via config flow.
++  docs-data-update:
++    status: exempt
++    comment: |
++      This integration does not fetch data from devices.
++  docs-examples: done
++  docs-known-limitations: done
++  docs-supported-devices: done
++  docs-supported-functions: done
++  docs-troubleshooting: done
++  docs-use-cases: done
++  dynamic-devices:
++    status: exempt
++    comment: |
++      Each config entry creates a single device.
++  entity-category: done
++  entity-device-class: done
++  entity-disabled-by-default: done
++  entity-translations: done
++  exception-translations:
++    status: exempt
++    comment: |
++      This integration does not raise exceptions.
++  icon-translations: done
++  reconfiguration-flow: done
++  repair-issues:
++    status: exempt
++    comment: |
++      This integration does not have repairable issues.
++  stale-devices:
++    status: exempt
++    comment: |
++      Each config entry manages exactly one device.
++
++  # Platinum
++  async-dependency:
++    status: exempt
++    comment: |
++      This integration has no external dependencies.
++  inject-websession:
++    status: exempt
++    comment: |
++      This integration does not make HTTP requests.
++  strict-typing: done
+diff --git a/homeassistant/components/sony_bravia_infrared/strings.json b/homeassistant/components/sony_bravia_infrared/strings.json
+new file mode 100644
+index 00000000..ab2e3b96
+--- /dev/null
++++ b/homeassistant/components/sony_bravia_infrared/strings.json
+@@ -0,0 +1,213 @@
++{
++  "config": {
++    "abort": {
++      "already_configured": "This infrared entity is already used by another Sony Bravia TV.",
++      "no_infrared_entities": "[%key:common::config_flow::abort::no_infrared_entities%]"
++    },
++    "error": {
++      "missing_infrared_entity": "Select an infrared emitter or receiver."
++    },
++    "step": {
++      "reconfigure": {
++        "data": {
++          "infrared_entity_id": "[%key:common::config_flow::data::infrared_entity_id%]",
++          "infrared_receiver_entity_id": "[%key:common::config_flow::data::infrared_receiver_entity_id%]"
++        },
++        "data_description": {
++          "infrared_entity_id": "[%key:common::config_flow::data_description::infrared_entity_id%]",
++          "infrared_receiver_entity_id": "[%key:component::sony_bravia_infrared::config::step::user::data_description::infrared_receiver_entity_id%]"
++        },
++        "description": "Change the infrared emitter or receiver used by your Sony Bravia TV.",
++        "title": "Reconfigure Sony Bravia TV"
++      },
++      "user": {
++        "data": {
++          "infrared_entity_id": "[%key:common::config_flow::data::infrared_entity_id%]",
++          "infrared_receiver_entity_id": "[%key:common::config_flow::data::infrared_receiver_entity_id%]"
++        },
++        "data_description": {
++          "infrared_entity_id": "[%key:common::config_flow::data_description::infrared_entity_id%]",
++          "infrared_receiver_entity_id": "The infrared receiver that picks up key presses from your Sony remote."
++        },
++        "description": "Select an infrared emitter to control your Sony Bravia TV, a receiver to pick up its remote, or both.",
++        "title": "Set up Sony Bravia TV"
++      }
++    }
++  },
++  "entity": {
++    "button": {
++      "audio": {
++        "name": "Audio"
++      },
++      "blue": {
++        "name": "Blue"
++      },
++      "channel_dash": {
++        "name": "Channel dash"
++      },
++      "channel_down": {
++        "name": "Channel down"
++      },
++      "channel_up": {
++        "name": "Channel up"
++      },
++      "closed_captions": {
++        "name": "Closed captions"
++      },
++      "component": {
++        "name": "Component"
++      },
++      "enter": {
++        "name": "Enter"
++      },
++      "exit": {
++        "name": "[%key:common::entity::button::exit::name%]"
++      },
++      "favorites": {
++        "name": "Favorites"
++      },
++      "green": {
++        "name": "Green"
++      },
++      "hdmi": {
++        "name": "HDMI"
++      },
++      "home": {
++        "name": "[%key:common::entity::button::home::name%]"
++      },
++      "info": {
++        "name": "[%key:common::entity::button::info::name%]"
++      },
++      "input": {
++        "name": "[%key:common::entity::button::input::name%]"
++      },
++      "jump": {
++        "name": "Jump"
++      },
++      "mute": {
++        "name": "Mute"
++      },
++      "nav_down": {
++        "name": "[%key:common::entity::button::down::name%]"
++      },
++      "nav_left": {
++        "name": "[%key:common::entity::button::left::name%]"
++      },
++      "nav_right": {
++        "name": "[%key:common::entity::button::right::name%]"
++      },
++      "nav_up": {
++        "name": "[%key:common::entity::button::up::name%]"
++      },
++      "num_0": {
++        "name": "[%key:common::entity::button::num_0::name%]"
++      },
++      "num_1": {
++        "name": "[%key:common::entity::button::num_1::name%]"
++      },
++      "num_2": {
++        "name": "[%key:common::entity::button::num_2::name%]"
++      },
++      "num_3": {
++        "name": "[%key:common::entity::button::num_3::name%]"
++      },
++      "num_4": {
++        "name": "[%key:common::entity::button::num_4::name%]"
++      },
++      "num_5": {
++        "name": "[%key:common::entity::button::num_5::name%]"
++      },
++      "num_6": {
++        "name": "[%key:common::entity::button::num_6::name%]"
++      },
++      "num_7": {
++        "name": "[%key:common::entity::button::num_7::name%]"
++      },
++      "num_8": {
++        "name": "[%key:common::entity::button::num_8::name%]"
++      },
++      "num_9": {
++        "name": "[%key:common::entity::button::num_9::name%]"
++      },
++      "ok": {
++        "name": "[%key:common::entity::button::ok::name%]"
++      },
++      "picture": {
++        "name": "Picture mode"
++      },
++      "power": {
++        "name": "[%key:common::entity::button::power::name%]"
++      },
++      "red": {
++        "name": "Red"
++      },
++      "sleep": {
++        "name": "Sleep"
++      },
++      "tv": {
++        "name": "TV"
++      },
++      "volume_down": {
++        "name": "Volume down"
++      },
++      "volume_up": {
++        "name": "Volume up"
++      },
++      "yellow": {
++        "name": "Yellow"
++      }
++    },
++    "event": {
++      "received_command": {
++        "name": "Received command",
++        "state_attributes": {
++          "event_type": {
++            "state": {
++              "audio": "Audio",
++              "blue": "Blue",
++              "channel_dash": "Channel dash",
++              "channel_down": "Channel down",
++              "channel_up": "Channel up",
++              "closed_captions": "Closed captions",
++              "component": "Component",
++              "enter": "Enter",
++              "exit": "[%key:common::entity::button::exit::name%]",
++              "favorites": "Favorites",
++              "green": "Green",
++              "hdmi": "HDMI",
++              "home": "[%key:common::entity::button::home::name%]",
++              "info": "[%key:common::entity::button::info::name%]",
++              "input": "[%key:common::entity::button::input::name%]",
++              "jump": "Jump",
++              "mute": "Mute",
++              "nav_down": "[%key:common::entity::button::down::name%]",
++              "nav_left": "[%key:common::entity::button::left::name%]",
++              "nav_right": "[%key:common::entity::button::right::name%]",
++              "nav_up": "[%key:common::entity::button::up::name%]",
++              "num_0": "[%key:common::entity::button::num_0::name%]",
++              "num_1": "[%key:common::entity::button::num_1::name%]",
++              "num_2": "[%key:common::entity::button::num_2::name%]",
++              "num_3": "[%key:common::entity::button::num_3::name%]",
++              "num_4": "[%key:common::entity::button::num_4::name%]",
++              "num_5": "[%key:common::entity::button::num_5::name%]",
++              "num_6": "[%key:common::entity::button::num_6::name%]",
++              "num_7": "[%key:common::entity::button::num_7::name%]",
++              "num_8": "[%key:common::entity::button::num_8::name%]",
++              "num_9": "[%key:common::entity::button::num_9::name%]",
++              "ok": "[%key:common::entity::button::ok::name%]",
++              "picture": "Picture mode",
++              "power": "[%key:common::entity::button::power::name%]",
++              "red": "Red",
++              "sleep": "Sleep",
++              "tv": "TV",
++              "unknown": "Unknown",
++              "volume_down": "Volume down",
++              "volume_up": "Volume up",
++              "yellow": "Yellow"
++            }
++          }
++        }
++      }
++    }
++  }
++}
+diff --git a/homeassistant/generated/config_flows.py b/homeassistant/generated/config_flows.py
+index e0b58da3..fbe9ee0d 100644
+--- a/homeassistant/generated/config_flows.py
++++ b/homeassistant/generated/config_flows.py
+@@ -794,6 +794,7 @@ FLOWS = {
+         "sonarr",
+         "songpal",
+         "sonos",
++        "sony_bravia_infrared",
+         "soundtouch",
+         "specialized_turbo",
+         "speedtestdotnet",
+diff --git a/homeassistant/generated/integrations.json b/homeassistant/generated/integrations.json
+index 8b5ea9c9..c8b9424e 100644
+--- a/homeassistant/generated/integrations.json
++++ b/homeassistant/generated/integrations.json
+@@ -14192,6 +14192,18 @@
+             "cloud"
+           ],
+           "name": "PlayStation Network"
++        },
++        "sony_bravia_infrared": {
++          "integration_type": "device",
++          "config_flow": true,
++          "iot_class": "assumed_state",
++          "categories": [
++            "media_entertainment.tv_streaming"
++          ],
++          "connectivity": [
++            "infrared"
++          ],
++          "name": "Sony Bravia Infrared"
+         }
+       }
+     },
+diff --git a/mypy.ini b/mypy.ini
+index d73b5df4..9bf21f72 100644
+--- a/mypy.ini
++++ b/mypy.ini
+@@ -5704,6 +5704,16 @@ disallow_untyped_defs = true
+ warn_return_any = true
+ warn_unreachable = true
+ 
++[mypy-homeassistant.components.sony_bravia_infrared.*]
++check_untyped_defs = true
++disallow_incomplete_defs = true
++disallow_subclassing_any = true
++disallow_untyped_calls = true
++disallow_untyped_decorators = true
++disallow_untyped_defs = true
++warn_return_any = true
++warn_unreachable = true
++
+ [mypy-homeassistant.components.spaceapi.*]
+ check_untyped_defs = true
+ disallow_incomplete_defs = true
+diff --git a/tests/components/sony_bravia_infrared/__init__.py b/tests/components/sony_bravia_infrared/__init__.py
+new file mode 100644
+index 00000000..a4b653b1
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/__init__.py
+@@ -0,0 +1,18 @@
++"""Tests for the Sony Bravia Infrared integration."""
++
++from infrared_protocols.codes.sony.tv import (
++    SONY_TV_ADDRESS,
++    SONY_TV_ADDRESS_BITS,
++    SonyTVCode,
++)
++from infrared_protocols.commands import Command
++from infrared_protocols.commands.sony import SonyCommand
++
++
++def assert_sony_tv_command(command: Command, code: SonyTVCode) -> None:
++    """Assert that a command is a three-frame key press of a Sony TV code."""
++    assert isinstance(command, SonyCommand)
++    assert command.address == SONY_TV_ADDRESS
++    assert command.address_bits == SONY_TV_ADDRESS_BITS
++    assert command.command == code
++    assert command.repeat_count == 2
+diff --git a/tests/components/sony_bravia_infrared/conftest.py b/tests/components/sony_bravia_infrared/conftest.py
+new file mode 100644
+index 00000000..4743d798
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/conftest.py
+@@ -0,0 +1,74 @@
++"""Common fixtures for the Sony Bravia Infrared tests."""
++
++from collections.abc import Generator
++from unittest.mock import AsyncMock, patch
++
++import pytest
++from pytest_homeassistant.common import MockConfigEntry
++from pytest_homeassistant.components.infrared import (
++    EMITTER_ENTITY_ID,
++    RECEIVER_ENTITY_ID,
++)
++from pytest_homeassistant.components.infrared.common import (
++    MockInfraredEmitterEntity,
++    MockInfraredReceiverEntity,
++)
++
++from homeassistant.components.sony_bravia_infrared import PLATFORMS
++from homeassistant.components.sony_bravia_infrared.const import (
++    CONF_INFRARED_ENTITY_ID,
++    CONF_INFRARED_RECEIVER_ENTITY_ID,
++    DOMAIN,
++)
++from homeassistant.const import Platform
++from homeassistant.core import HomeAssistant
++
++ENTRY_ID = "01JTEST0000000000000000000"
++
++
++@pytest.fixture
++def mock_setup_entry() -> Generator[AsyncMock]:
++    """Override async_setup_entry."""
++    with patch(
++        "homeassistant.components.sony_bravia_infrared.async_setup_entry",
++        return_value=None,
++    ) as mock_setup_entry:
++        yield mock_setup_entry
++
++
++@pytest.fixture
++def mock_config_entry() -> MockConfigEntry:
++    """Return a mock config entry with an emitter and a receiver."""
++    return MockConfigEntry(
++        domain=DOMAIN,
++        entry_id=ENTRY_ID,
++        title="Sony Bravia TV via Test IR emitter",
++        data={
++            CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID,
++            CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID,
++        },
++    )
++
++
++@pytest.fixture
++def platforms() -> list[Platform]:
++    """Return platforms to set up."""
++    return PLATFORMS
++
++
++@pytest.fixture
++async def init_integration(
++    hass: HomeAssistant,
++    mock_config_entry: MockConfigEntry,
++    mock_infrared_emitter_entity: MockInfraredEmitterEntity,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    platforms: list[Platform],
++) -> MockConfigEntry:
++    """Set up the Sony Bravia Infrared integration for testing."""
++    mock_config_entry.add_to_hass(hass)
++
++    with patch("homeassistant.components.sony_bravia_infrared.PLATFORMS", platforms):
++        await hass.config_entries.async_setup(mock_config_entry.entry_id)
++        await hass.async_block_till_done()
++
++    return mock_config_entry
+diff --git a/tests/components/sony_bravia_infrared/snapshots/test_button.ambr b/tests/components/sony_bravia_infrared/snapshots/test_button.ambr
+new file mode 100644
+index 00000000..bb74aa2b
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/snapshots/test_button.ambr
+@@ -0,0 +1,2001 @@
++# serializer version: 1
++# name: test_entities[button.sony_bravia_tv_audio-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_audio',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Audio',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Audio',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'audio',
++    'unique_id': '01JTEST0000000000000000000_audio',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_audio-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Audio',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_audio',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_blue-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_blue',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Blue',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Blue',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'blue',
++    'unique_id': '01JTEST0000000000000000000_blue',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_blue-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Blue',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_blue',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_channel_dash-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_channel_dash',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Channel dash',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Channel dash',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'channel_dash',
++    'unique_id': '01JTEST0000000000000000000_channel_dash',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_channel_dash-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Channel dash',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_channel_dash',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_channel_down-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_channel_down',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Channel down',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Channel down',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'channel_down',
++    'unique_id': '01JTEST0000000000000000000_channel_down',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_channel_down-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Channel down',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_channel_down',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_channel_up-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_channel_up',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Channel up',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Channel up',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'channel_up',
++    'unique_id': '01JTEST0000000000000000000_channel_up',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_channel_up-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Channel up',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_channel_up',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_closed_captions-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_closed_captions',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Closed captions',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Closed captions',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'closed_captions',
++    'unique_id': '01JTEST0000000000000000000_closed_captions',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_closed_captions-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Closed captions',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_closed_captions',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_component-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_component',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Component',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Component',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'component',
++    'unique_id': '01JTEST0000000000000000000_component',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_component-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Component',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_component',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_down-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_down',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Down',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Down',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'nav_down',
++    'unique_id': '01JTEST0000000000000000000_nav_down',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_down-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Down',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_down',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_enter-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_enter',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Enter',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Enter',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'enter',
++    'unique_id': '01JTEST0000000000000000000_enter',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_enter-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Enter',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_enter',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_exit-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_exit',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Exit',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Exit',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'exit',
++    'unique_id': '01JTEST0000000000000000000_exit',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_exit-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Exit',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_exit',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_favorites-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_favorites',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Favorites',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Favorites',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'favorites',
++    'unique_id': '01JTEST0000000000000000000_favorites',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_favorites-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Favorites',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_favorites',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_green-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_green',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Green',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Green',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'green',
++    'unique_id': '01JTEST0000000000000000000_green',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_green-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Green',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_green',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_hdmi-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_hdmi',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'HDMI',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'HDMI',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'hdmi',
++    'unique_id': '01JTEST0000000000000000000_hdmi',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_hdmi-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV HDMI',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_hdmi',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_home-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_home',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Home',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Home',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'home',
++    'unique_id': '01JTEST0000000000000000000_home',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_home-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Home',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_home',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_info-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_info',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Info',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Info',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'info',
++    'unique_id': '01JTEST0000000000000000000_info',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_info-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Info',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_info',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_input-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_input',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Input',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Input',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'input',
++    'unique_id': '01JTEST0000000000000000000_input',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_input-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Input',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_input',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_jump-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_jump',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Jump',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Jump',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'jump',
++    'unique_id': '01JTEST0000000000000000000_jump',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_jump-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Jump',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_jump',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_left-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_left',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Left',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Left',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'nav_left',
++    'unique_id': '01JTEST0000000000000000000_nav_left',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_left-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Left',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_left',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_mute-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_mute',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Mute',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Mute',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'mute',
++    'unique_id': '01JTEST0000000000000000000_mute',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_mute-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Mute',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_mute',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_0-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_0',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 0',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 0',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_0',
++    'unique_id': '01JTEST0000000000000000000_num_0',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_0-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 0',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_0',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_1-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_1',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 1',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 1',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_1',
++    'unique_id': '01JTEST0000000000000000000_num_1',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_1-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 1',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_1',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_2-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_2',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 2',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 2',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_2',
++    'unique_id': '01JTEST0000000000000000000_num_2',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_2-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 2',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_2',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_3-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_3',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 3',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 3',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_3',
++    'unique_id': '01JTEST0000000000000000000_num_3',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_3-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 3',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_3',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_4-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_4',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 4',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 4',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_4',
++    'unique_id': '01JTEST0000000000000000000_num_4',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_4-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 4',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_4',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_5-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_5',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 5',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 5',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_5',
++    'unique_id': '01JTEST0000000000000000000_num_5',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_5-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 5',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_5',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_6-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_6',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 6',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 6',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_6',
++    'unique_id': '01JTEST0000000000000000000_num_6',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_6-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 6',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_6',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_7-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_7',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 7',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 7',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_7',
++    'unique_id': '01JTEST0000000000000000000_num_7',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_7-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 7',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_7',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_8-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_8',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 8',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 8',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_8',
++    'unique_id': '01JTEST0000000000000000000_num_8',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_8-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 8',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_8',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_9-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_number_9',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Number 9',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Number 9',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'num_9',
++    'unique_id': '01JTEST0000000000000000000_num_9',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_number_9-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Number 9',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_number_9',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_ok-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_ok',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'OK',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'OK',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'ok',
++    'unique_id': '01JTEST0000000000000000000_ok',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_ok-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV OK',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_ok',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_picture_mode-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_picture_mode',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Picture mode',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Picture mode',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'picture',
++    'unique_id': '01JTEST0000000000000000000_picture',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_picture_mode-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Picture mode',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_picture_mode',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_power-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_power',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Power',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Power',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'power',
++    'unique_id': '01JTEST0000000000000000000_power',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_power-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Power',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_power',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_red-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_red',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Red',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Red',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'red',
++    'unique_id': '01JTEST0000000000000000000_red',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_red-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Red',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_red',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_right-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_right',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Right',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Right',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'nav_right',
++    'unique_id': '01JTEST0000000000000000000_nav_right',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_right-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Right',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_right',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_sleep-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_sleep',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Sleep',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Sleep',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'sleep',
++    'unique_id': '01JTEST0000000000000000000_sleep',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_sleep-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Sleep',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_sleep',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_tv-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_tv',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'TV',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'TV',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'tv',
++    'unique_id': '01JTEST0000000000000000000_tv',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_tv-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV TV',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_tv',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_up-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_up',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Up',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Up',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'nav_up',
++    'unique_id': '01JTEST0000000000000000000_nav_up',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_up-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Up',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_up',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_volume_down-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_volume_down',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Volume down',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Volume down',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'volume_down',
++    'unique_id': '01JTEST0000000000000000000_volume_down',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_volume_down-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Volume down',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_volume_down',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_volume_up-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_volume_up',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Volume up',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Volume up',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'volume_up',
++    'unique_id': '01JTEST0000000000000000000_volume_up',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_volume_up-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Volume up',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_volume_up',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_yellow-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': None,
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'button',
++    'entity_category': None,
++    'entity_id': 'button.sony_bravia_tv_yellow',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Yellow',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Yellow',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'yellow',
++    'unique_id': '01JTEST0000000000000000000_yellow',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[button.sony_bravia_tv_yellow-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Yellow',
++    }),
++    'context': <ANY>,
++    'entity_id': 'button.sony_bravia_tv_yellow',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
+diff --git a/tests/components/sony_bravia_infrared/snapshots/test_diagnostics.ambr b/tests/components/sony_bravia_infrared/snapshots/test_diagnostics.ambr
+new file mode 100644
+index 00000000..caa9990a
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/snapshots/test_diagnostics.ambr
+@@ -0,0 +1,7 @@
++# serializer version: 1
++# name: test_diagnostics
++  dict({
++    'infrared_entity_id': 'infrared.test_ir_emitter',
++    'infrared_receiver_entity_id': 'infrared.test_ir_receiver',
++  })
++# ---
+diff --git a/tests/components/sony_bravia_infrared/snapshots/test_event.ambr b/tests/components/sony_bravia_infrared/snapshots/test_event.ambr
+new file mode 100644
+index 00000000..4d44533e
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/snapshots/test_event.ambr
+@@ -0,0 +1,139 @@
++# serializer version: 1
++# name: test_entities[event.sony_bravia_tv_received_command-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': dict({
++      <EventEntityCapabilityAttribute.EVENT_TYPES: 'event_types'>: list([
++        'power',
++        'mute',
++        'volume_up',
++        'volume_down',
++        'channel_up',
++        'channel_down',
++        'input',
++        'sleep',
++        'num_0',
++        'num_1',
++        'num_2',
++        'num_3',
++        'num_4',
++        'num_5',
++        'num_6',
++        'num_7',
++        'num_8',
++        'num_9',
++        'channel_dash',
++        'enter',
++        'nav_up',
++        'nav_down',
++        'nav_left',
++        'nav_right',
++        'ok',
++        'home',
++        'exit',
++        'info',
++        'jump',
++        'favorites',
++        'closed_captions',
++        'audio',
++        'picture',
++        'tv',
++        'hdmi',
++        'component',
++        'red',
++        'green',
++        'yellow',
++        'blue',
++        'unknown',
++      ]),
++    }),
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'event',
++    'entity_category': None,
++    'entity_id': 'event.sony_bravia_tv_received_command',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': 'Received command',
++    'options': dict({
++    }),
++    'original_device_class': None,
++    'original_icon': None,
++    'original_name': 'Received command',
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': 0,
++    'translation_key': 'received_command',
++    'unique_id': '01JTEST0000000000000000000_received_command',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[event.sony_bravia_tv_received_command-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EventEntityStateAttribute.EVENT_TYPE: 'event_type'>: None,
++      <EventEntityCapabilityAttribute.EVENT_TYPES: 'event_types'>: list([
++        'power',
++        'mute',
++        'volume_up',
++        'volume_down',
++        'channel_up',
++        'channel_down',
++        'input',
++        'sleep',
++        'num_0',
++        'num_1',
++        'num_2',
++        'num_3',
++        'num_4',
++        'num_5',
++        'num_6',
++        'num_7',
++        'num_8',
++        'num_9',
++        'channel_dash',
++        'enter',
++        'nav_up',
++        'nav_down',
++        'nav_left',
++        'nav_right',
++        'ok',
++        'home',
++        'exit',
++        'info',
++        'jump',
++        'favorites',
++        'closed_captions',
++        'audio',
++        'picture',
++        'tv',
++        'hdmi',
++        'component',
++        'red',
++        'green',
++        'yellow',
++        'blue',
++        'unknown',
++      ]),
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Received command',
++    }),
++    'context': <ANY>,
++    'entity_id': 'event.sony_bravia_tv_received_command',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'unknown',
++  })
++# ---
+diff --git a/tests/components/sony_bravia_infrared/snapshots/test_media_player.ambr b/tests/components/sony_bravia_infrared/snapshots/test_media_player.ambr
+new file mode 100644
+index 00000000..abfa387d
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/snapshots/test_media_player.ambr
+@@ -0,0 +1,55 @@
++# serializer version: 1
++# name: test_entities[media_player.sony_bravia_tv-entry]
++  EntityRegistryEntrySnapshot({
++    'aliases': list([
++      None,
++    ]),
++    'area_id': None,
++    'capabilities': dict({
++    }),
++    'config_entry_id': <ANY>,
++    'config_subentry_id': None,
++    'device_class': None,
++    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
++    'disabled_by': None,
++    'domain': 'media_player',
++    'entity_category': None,
++    'entity_id': 'media_player.sony_bravia_tv',
++    'has_entity_name': True,
++    'hidden_by': None,
++    'icon': None,
++    'id': <ANY>,
++    'labels': set({
++    }),
++    'name': None,
++    'object_id_base': None,
++    'options': dict({
++    }),
++    'original_device_class': <MediaPlayerDeviceClass.TV: 'tv'>,
++    'original_icon': None,
++    'original_name': None,
++    'platform': 'sony_bravia_infrared',
++    'previous_unique_id': None,
++    'suggested_object_id': None,
++    'supported_features': <MediaPlayerEntityFeature: 1464>,
++    'translation_key': None,
++    'unique_id': '01JTEST0000000000000000000_media_player',
++    'unit_of_measurement': None,
++  })
++# ---
++# name: test_entities[media_player.sony_bravia_tv-state]
++  StateSnapshot({
++    'attributes': ReadOnlyDict({
++      <EntityStateAttribute.ASSUMED_STATE: 'assumed_state'>: True,
++      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'tv',
++      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV',
++      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <MediaPlayerEntityFeature: 1464>,
++    }),
++    'context': <ANY>,
++    'entity_id': 'media_player.sony_bravia_tv',
++    'last_changed': <ANY>,
++    'last_reported': <ANY>,
++    'last_updated': <ANY>,
++    'state': 'on',
++  })
++# ---
+diff --git a/tests/components/sony_bravia_infrared/test_button.py b/tests/components/sony_bravia_infrared/test_button.py
+new file mode 100644
+index 00000000..df360dd8
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/test_button.py
+@@ -0,0 +1,113 @@
++"""Tests for the Sony Bravia Infrared button platform."""
++
++from infrared_protocols.codes.sony.tv import SonyTVCode
++import pytest
++from pytest_homeassistant.common import MockConfigEntry, snapshot_platform
++from pytest_homeassistant.components.common import (
++    assert_availability_follows_source_entity,
++)
++from pytest_homeassistant.components.infrared import EMITTER_ENTITY_ID
++from pytest_homeassistant.components.infrared.common import MockInfraredEmitterEntity
++from syrupy.assertion import SnapshotAssertion
++
++from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, ButtonService
++from homeassistant.const import CommonServiceArgument, Platform
++from homeassistant.core import HomeAssistant
++from homeassistant.helpers import device_registry as dr, entity_registry as er
++
++from . import assert_sony_tv_command
++
++
++@pytest.fixture
++def platforms() -> list[Platform]:
++    """Return platforms to set up."""
++    return [Platform.BUTTON]
++
++
++@pytest.mark.usefixtures("entity_registry_enabled_by_default", "init_integration")
++async def test_entities(
++    hass: HomeAssistant,
++    snapshot: SnapshotAssertion,
++    entity_registry: er.EntityRegistry,
++    device_registry: dr.DeviceRegistry,
++    mock_config_entry: MockConfigEntry,
++) -> None:
++    """Test all button entities are created with the expected attributes."""
++    await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
++
++    device_entry = device_registry.async_get_device_by_identifier(
++        ("sony_bravia_infrared", mock_config_entry.entry_id),
++        mock_config_entry.entry_id,
++    )
++    assert device_entry
++    entity_entries = er.async_entries_for_config_entry(
++        entity_registry, mock_config_entry.entry_id
++    )
++    assert len(entity_entries) == len(SonyTVCode)
++    for entity_entry in entity_entries:
++        assert entity_entry.device_id == device_entry.id
++
++
++@pytest.mark.parametrize(
++    ("entity_id", "expected_code"),
++    [
++        ("button.sony_bravia_tv_power", SonyTVCode.POWER),
++        ("button.sony_bravia_tv_input", SonyTVCode.INPUT),
++        ("button.sony_bravia_tv_up", SonyTVCode.NAV_UP),
++        ("button.sony_bravia_tv_ok", SonyTVCode.OK),
++        ("button.sony_bravia_tv_home", SonyTVCode.HOME),
++        ("button.sony_bravia_tv_number_0", SonyTVCode.NUM_0),
++        ("button.sony_bravia_tv_number_1", SonyTVCode.NUM_1),
++        ("button.sony_bravia_tv_red", SonyTVCode.RED),
++    ],
++)
++@pytest.mark.usefixtures("entity_registry_enabled_by_default", "init_integration")
++async def test_button_press_sends_correct_code(
++    hass: HomeAssistant,
++    mock_infrared_emitter_entity: MockInfraredEmitterEntity,
++    entity_id: str,
++    expected_code: SonyTVCode,
++) -> None:
++    """Test pressing a button sends the correct IR code."""
++    await hass.services.async_call(
++        BUTTON_DOMAIN,
++        ButtonService.PRESS,
++        {CommonServiceArgument.ENTITY_ID: entity_id},
++        blocking=True,
++    )
++
++    assert len(mock_infrared_emitter_entity.send_command_calls) == 1
++    assert_sony_tv_command(
++        mock_infrared_emitter_entity.send_command_calls[0], expected_code
++    )
++
++
++@pytest.mark.parametrize(
++    ("entity_id", "disabled_by"),
++    [
++        ("button.sony_bravia_tv_power", None),
++        ("button.sony_bravia_tv_volume_up", None),
++        ("button.sony_bravia_tv_number_5", er.RegistryEntryDisabler.INTEGRATION),
++        ("button.sony_bravia_tv_blue", er.RegistryEntryDisabler.INTEGRATION),
++    ],
++)
++@pytest.mark.usefixtures("init_integration")
++async def test_buttons_disabled_by_default(
++    entity_registry: er.EntityRegistry,
++    entity_id: str,
++    disabled_by: er.RegistryEntryDisabler | None,
++) -> None:
++    """Test less common keys are disabled by default and core keys are not."""
++    entity_entry = entity_registry.async_get(entity_id)
++    assert entity_entry
++    assert entity_entry.disabled_by is disabled_by
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_button_availability_follows_ir_entity(
++    hass: HomeAssistant,
++) -> None:
++    """Test a button becomes unavailable when the emitter is unavailable."""
++    await assert_availability_follows_source_entity(
++        hass, "button.sony_bravia_tv_power", [EMITTER_ENTITY_ID]
++    )
+diff --git a/tests/components/sony_bravia_infrared/test_config_flow.py b/tests/components/sony_bravia_infrared/test_config_flow.py
+new file mode 100644
+index 00000000..b6ba8106
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/test_config_flow.py
+@@ -0,0 +1,285 @@
++"""Tests for the Sony Bravia Infrared config flow."""
++
++import pytest
++from pytest_homeassistant.common import MockConfigEntry, get_schema_suggested_value
++from pytest_homeassistant.components.infrared import (
++    EMITTER_ENTITY_ID,
++    RECEIVER_ENTITY_ID,
++)
++from pytest_homeassistant.components.infrared.common import MockInfraredEmitterEntity
++
++from homeassistant.components.infrared import DATA_COMPONENT as INFRARED_DATA_COMPONENT
++from homeassistant.components.sony_bravia_infrared.const import (
++    CONF_INFRARED_ENTITY_ID,
++    CONF_INFRARED_RECEIVER_ENTITY_ID,
++    DOMAIN,
++)
++from homeassistant.config_entries import SOURCE_USER
++from homeassistant.core import HomeAssistant
++from homeassistant.data_entry_flow import FlowResultType
++from homeassistant.helpers import entity_registry as er
++
++SECOND_EMITTER_ENTITY_ID = "infrared.second_ir_emitter"
++UNREGISTERED_EMITTER_ENTITY_ID = "infrared.unregistered_ir_emitter"
++
++
++@pytest.mark.parametrize(
++    ("user_input", "expected_title"),
++    [
++        pytest.param(
++            {CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID},
++            "Sony Bravia TV via Test IR emitter",
++            id="emitter_only",
++        ),
++        pytest.param(
++            {
++                CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID,
++                CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID,
++            },
++            "Sony Bravia TV via Test IR emitter",
++            id="emitter_and_receiver",
++        ),
++        pytest.param(
++            {CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID},
++            "Sony Bravia TV via Test IR receiver",
++            id="receiver_only",
++        ),
++    ],
++)
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity", "mock_setup_entry"
++)
++async def test_user_flow(
++    hass: HomeAssistant,
++    user_input: dict[str, str],
++    expected_title: str,
++) -> None:
++    """Test a successful user flow."""
++    result = await hass.config_entries.flow.async_init(
++        DOMAIN, context={"source": SOURCE_USER}
++    )
++    assert result["type"] is FlowResultType.FORM
++    assert result["step_id"] == "user"
++    assert result["errors"] == {}
++
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input=user_input
++    )
++
++    assert result["type"] is FlowResultType.CREATE_ENTRY
++    assert result["title"] == expected_title
++    assert result["data"] == user_input
++    assert result["result"].unique_id is None
++
++
++@pytest.mark.usefixtures("mock_infrared_emitter_entity", "mock_setup_entry")
++async def test_user_flow_title_uses_entity_registry_name(
++    hass: HomeAssistant,
++    entity_registry: er.EntityRegistry,
++) -> None:
++    """Test the entry title uses a name the user gave the emitter."""
++    entity_registry.async_update_entity(EMITTER_ENTITY_ID, name="Living room blaster")
++
++    result = await hass.config_entries.flow.async_init(
++        DOMAIN, context={"source": SOURCE_USER}
++    )
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input={CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}
++    )
++
++    assert result["type"] is FlowResultType.CREATE_ENTRY
++    assert result["title"] == "Sony Bravia TV via Living room blaster"
++
++
++@pytest.mark.usefixtures("init_infrared", "mock_setup_entry")
++async def test_user_flow_title_falls_back_to_entity_id(hass: HomeAssistant) -> None:
++    """Test the entry title uses the entity ID when it is not in the registry."""
++    emitter = MockInfraredEmitterEntity("unregistered_ir_emitter", None)
++    emitter._attr_unique_id = None
++    emitter.entity_id = UNREGISTERED_EMITTER_ENTITY_ID
++    await hass.data[INFRARED_DATA_COMPONENT].async_add_entities([emitter])
++
++    result = await hass.config_entries.flow.async_init(
++        DOMAIN, context={"source": SOURCE_USER}
++    )
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"],
++        user_input={CONF_INFRARED_ENTITY_ID: UNREGISTERED_EMITTER_ENTITY_ID},
++    )
++
++    assert result["type"] is FlowResultType.CREATE_ENTRY
++    assert result["title"] == f"Sony Bravia TV via {UNREGISTERED_EMITTER_ENTITY_ID}"
++
++
++@pytest.mark.usefixtures("mock_infrared_emitter_entity", "mock_setup_entry")
++async def test_user_flow_requires_emitter_or_receiver(hass: HomeAssistant) -> None:
++    """Test the flow shows an error when neither an emitter nor receiver is chosen."""
++    result = await hass.config_entries.flow.async_init(
++        DOMAIN, context={"source": SOURCE_USER}
++    )
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input={}
++    )
++
++    assert result["type"] is FlowResultType.FORM
++    assert result["errors"] == {"base": "missing_infrared_entity"}
++
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input={CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}
++    )
++    assert result["type"] is FlowResultType.CREATE_ENTRY
++
++
++@pytest.mark.usefixtures("init_infrared")
++async def test_user_flow_no_infrared_entities(hass: HomeAssistant) -> None:
++    """Test the flow aborts when there are no infrared entities."""
++    result = await hass.config_entries.flow.async_init(
++        DOMAIN, context={"source": SOURCE_USER}
++    )
++
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "no_infrared_entities"
++
++
++@pytest.mark.parametrize(
++    "user_input",
++    [
++        pytest.param({CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}, id="emitter"),
++        pytest.param(
++            {CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID}, id="receiver"
++        ),
++    ],
++)
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity", "mock_setup_entry"
++)
++async def test_user_flow_already_configured(
++    hass: HomeAssistant,
++    mock_config_entry: MockConfigEntry,
++    user_input: dict[str, str],
++) -> None:
++    """Test the flow aborts when an infrared entity is already in use."""
++    mock_config_entry.add_to_hass(hass)
++
++    result = await hass.config_entries.flow.async_init(
++        DOMAIN, context={"source": SOURCE_USER}
++    )
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input=user_input
++    )
++
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "already_configured"
++
++
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity", "mock_setup_entry"
++)
++async def test_reconfigure_flow(
++    hass: HomeAssistant, mock_config_entry: MockConfigEntry
++) -> None:
++    """Test changing the emitter and dropping the receiver."""
++    await hass.data[INFRARED_DATA_COMPONENT].async_add_entities(
++        [MockInfraredEmitterEntity("second_ir_emitter", "Second IR emitter")]
++    )
++    mock_config_entry.add_to_hass(hass)
++
++    result = await mock_config_entry.start_reconfigure_flow(hass)
++    assert result["type"] is FlowResultType.FORM
++    assert result["step_id"] == "reconfigure"
++    assert (
++        get_schema_suggested_value(
++            result["data_schema"].schema, CONF_INFRARED_ENTITY_ID
++        )
++        == EMITTER_ENTITY_ID
++    )
++
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"],
++        user_input={CONF_INFRARED_ENTITY_ID: SECOND_EMITTER_ENTITY_ID},
++    )
++
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "reconfigure_successful"
++    assert mock_config_entry.data == {CONF_INFRARED_ENTITY_ID: SECOND_EMITTER_ENTITY_ID}
++
++
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity", "mock_setup_entry"
++)
++async def test_reconfigure_flow_keeps_own_entities(
++    hass: HomeAssistant, mock_config_entry: MockConfigEntry
++) -> None:
++    """Test reconfiguring with unchanged entities does not abort as a duplicate."""
++    mock_config_entry.add_to_hass(hass)
++
++    result = await mock_config_entry.start_reconfigure_flow(hass)
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input=dict(mock_config_entry.data)
++    )
++
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "reconfigure_successful"
++
++
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity", "mock_setup_entry"
++)
++async def test_reconfigure_flow_requires_emitter_or_receiver(
++    hass: HomeAssistant, mock_config_entry: MockConfigEntry
++) -> None:
++    """Test reconfigure shows an error when both entities are cleared."""
++    mock_config_entry.add_to_hass(hass)
++
++    result = await mock_config_entry.start_reconfigure_flow(hass)
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input={}
++    )
++
++    assert result["type"] is FlowResultType.FORM
++    assert result["errors"] == {"base": "missing_infrared_entity"}
++
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"],
++        user_input={CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID},
++    )
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "reconfigure_successful"
++    assert mock_config_entry.data == {
++        CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID
++    }
++
++
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity", "mock_setup_entry"
++)
++async def test_reconfigure_flow_already_configured(
++    hass: HomeAssistant, mock_config_entry: MockConfigEntry
++) -> None:
++    """Test reconfigure aborts when the emitter is used by another entry."""
++    mock_config_entry.add_to_hass(hass)
++    other_entry = MockConfigEntry(
++        domain=DOMAIN, data={CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID}
++    )
++    other_entry.add_to_hass(hass)
++
++    result = await other_entry.start_reconfigure_flow(hass)
++    result = await hass.config_entries.flow.async_configure(
++        result["flow_id"], user_input={CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}
++    )
++
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "already_configured"
++
++
++@pytest.mark.usefixtures("init_infrared")
++async def test_reconfigure_flow_no_infrared_entities(
++    hass: HomeAssistant, mock_config_entry: MockConfigEntry
++) -> None:
++    """Test reconfigure aborts when there are no infrared entities."""
++    mock_config_entry.add_to_hass(hass)
++
++    result = await mock_config_entry.start_reconfigure_flow(hass)
++
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "no_infrared_entities"
+diff --git a/tests/components/sony_bravia_infrared/test_diagnostics.py b/tests/components/sony_bravia_infrared/test_diagnostics.py
+new file mode 100644
+index 00000000..58ea38e0
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/test_diagnostics.py
+@@ -0,0 +1,21 @@
++"""Tests for the Sony Bravia Infrared diagnostics platform."""
++
++from pytest_homeassistant.common import MockConfigEntry
++from pytest_homeassistant.components.diagnostics import get_diagnostics_for_config_entry
++from pytest_homeassistant.typing import ClientSessionGenerator
++from syrupy.assertion import SnapshotAssertion
++
++from homeassistant.core import HomeAssistant
++
++
++async def test_diagnostics(
++    hass: HomeAssistant,
++    hass_client: ClientSessionGenerator,
++    init_integration: MockConfigEntry,
++    snapshot: SnapshotAssertion,
++) -> None:
++    """Test diagnostics."""
++    assert (
++        await get_diagnostics_for_config_entry(hass, hass_client, init_integration)
++        == snapshot
++    )
+diff --git a/tests/components/sony_bravia_infrared/test_event.py b/tests/components/sony_bravia_infrared/test_event.py
+new file mode 100644
+index 00000000..9ca0593f
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/test_event.py
+@@ -0,0 +1,198 @@
++"""Tests for the Sony Bravia Infrared event platform."""
++
++from datetime import timedelta
++
++from freezegun.api import FrozenDateTimeFactory
++from infrared_protocols.codes.sony.tv import SonyTVCode
++from infrared_protocols.commands.sony import SonyCommand
++import pytest
++from pytest_homeassistant.common import MockConfigEntry, snapshot_platform
++from pytest_homeassistant.components.common import (
++    assert_availability_follows_source_entity,
++)
++from pytest_homeassistant.components.infrared import RECEIVER_ENTITY_ID
++from pytest_homeassistant.components.infrared.common import MockInfraredReceiverEntity
++from syrupy.assertion import SnapshotAssertion
++
++from homeassistant.components.event import EventEntityStateAttribute
++from homeassistant.components.infrared import InfraredReceivedSignal
++from homeassistant.const import STATE_UNKNOWN, Platform
++from homeassistant.core import HomeAssistant
++from homeassistant.helpers import entity_registry as er
++from homeassistant.util import dt as dt_util
++
++EVENT_ENTITY_ID = "event.sony_bravia_tv_received_command"
++NOW = dt_util.parse_datetime("2026-11-16 12:00:00+00:00")
++
++
++def _send(
++    receiver: MockInfraredReceiverEntity,
++    command: int,
++    *,
++    address: int = 0x01,
++    address_bits: int = 5,
++    repeat_count: int = 2,
++) -> None:
++    """Feed a Sony SIRC key press to the mock receiver."""
++    sony_command = SonyCommand(
++        address=address,
++        address_bits=address_bits,
++        command=command,
++        repeat_count=repeat_count,
++    )
++    receiver._handle_received_signal(
++        InfraredReceivedSignal(timings=sony_command.get_raw_timings())
++    )
++
++
++@pytest.fixture
++def platforms() -> list[Platform]:
++    """Return platforms to set up."""
++    return [Platform.EVENT]
++
++
++@pytest.fixture(autouse=True)
++def frozen_time(freezer: FrozenDateTimeFactory) -> FrozenDateTimeFactory:
++    """Freeze time so event timestamps are predictable."""
++    assert NOW is not None
++    freezer.move_to(NOW)
++    return freezer
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_entities(
++    hass: HomeAssistant,
++    snapshot: SnapshotAssertion,
++    entity_registry: er.EntityRegistry,
++    mock_config_entry: MockConfigEntry,
++) -> None:
++    """Test the event entity is created with the expected attributes."""
++    await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
++
++
++@pytest.mark.parametrize(
++    ("command", "expected_event_type"),
++    [
++        (SonyTVCode.POWER, "power"),
++        (SonyTVCode.VOLUME_UP, "volume_up"),
++        (SonyTVCode.NAV_UP, "nav_up"),
++        (SonyTVCode.NUM_0, "num_0"),
++        (SonyTVCode.CLOSED_CAPTIONS, "closed_captions"),
++        (0x2E, "unknown"),
++    ],
++)
++@pytest.mark.usefixtures("init_integration")
++async def test_event_fires(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    command: int,
++    expected_event_type: str,
++) -> None:
++    """Test the event entity fires the expected event type."""
++    _send(mock_infrared_receiver_entity, command)
++    await hass.async_block_till_done()
++
++    state = hass.states.get(EVENT_ENTITY_ID)
++    assert state is not None
++    assert NOW is not None
++    assert state.state == NOW.isoformat(timespec="milliseconds")
++    assert state.attributes[EventEntityStateAttribute.EVENT_TYPE] == expected_event_type
++
++
++@pytest.mark.parametrize(
++    "signal_kwargs",
++    [
++        pytest.param({"address": 0x02}, id="other_address"),
++        pytest.param({"address": 0x01, "address_bits": 8}, id="15_bit_frame"),
++    ],
++)
++@pytest.mark.usefixtures("init_integration")
++async def test_event_ignores_other_devices(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    signal_kwargs: dict[str, int],
++) -> None:
++    """Test the event entity ignores SIRC frames meant for other devices."""
++    _send(mock_infrared_receiver_entity, SonyTVCode.POWER, **signal_kwargs)
++    await hass.async_block_till_done()
++
++    state = hass.states.get(EVENT_ENTITY_ID)
++    assert state is not None
++    assert state.state == STATE_UNKNOWN
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_event_ignores_non_sirc_signals(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++) -> None:
++    """Test the event entity ignores signals that cannot be decoded as SIRC."""
++    mock_infrared_receiver_entity._handle_received_signal(
++        InfraredReceivedSignal(timings=[1, 2, 3, 4])
++    )
++    await hass.async_block_till_done()
++
++    state = hass.states.get(EVENT_ENTITY_ID)
++    assert state is not None
++    assert state.state == STATE_UNKNOWN
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_held_key_fires_once(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    frozen_time: FrozenDateTimeFactory,
++) -> None:
++    """Test frames repeated while a key is held fire a single event."""
++    _send(mock_infrared_receiver_entity, SonyTVCode.VOLUME_UP, repeat_count=0)
++    await hass.async_block_till_done()
++    first_state = hass.states.get(EVENT_ENTITY_ID)
++    assert first_state is not None
++
++    for _ in range(5):
++        frozen_time.tick(timedelta(milliseconds=45))
++        _send(mock_infrared_receiver_entity, SonyTVCode.VOLUME_UP, repeat_count=0)
++        await hass.async_block_till_done()
++
++    state = hass.states.get(EVENT_ENTITY_ID)
++    assert state is not None
++    assert state.state == first_state.state
++
++    # A different key right after fires straight away.
++    _send(mock_infrared_receiver_entity, SonyTVCode.MUTE, repeat_count=0)
++    await hass.async_block_till_done()
++    state = hass.states.get(EVENT_ENTITY_ID)
++    assert state is not None
++    assert state.attributes[EventEntityStateAttribute.EVENT_TYPE] == "mute"
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_separate_presses_fire_twice(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    frozen_time: FrozenDateTimeFactory,
++) -> None:
++    """Test two presses of the same key with a pause between fire two events."""
++    _send(mock_infrared_receiver_entity, SonyTVCode.VOLUME_UP)
++    await hass.async_block_till_done()
++    first_state = hass.states.get(EVENT_ENTITY_ID)
++    assert first_state is not None
++
++    frozen_time.tick(timedelta(seconds=1))
++    _send(mock_infrared_receiver_entity, SonyTVCode.VOLUME_UP)
++    await hass.async_block_till_done()
++
++    state = hass.states.get(EVENT_ENTITY_ID)
++    assert state is not None
++    assert state.state != first_state.state
++    assert state.attributes[EventEntityStateAttribute.EVENT_TYPE] == "volume_up"
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_event_availability_follows_ir_entity(
++    hass: HomeAssistant,
++) -> None:
++    """Test the event entity becomes unavailable when the receiver is unavailable."""
++    await assert_availability_follows_source_entity(
++        hass, EVENT_ENTITY_ID, [RECEIVER_ENTITY_ID]
++    )
+diff --git a/tests/components/sony_bravia_infrared/test_init.py b/tests/components/sony_bravia_infrared/test_init.py
+new file mode 100644
+index 00000000..0bba80db
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/test_init.py
+@@ -0,0 +1,70 @@
++"""Tests for the Sony Bravia Infrared integration setup."""
++
++import pytest
++from pytest_homeassistant.common import MockConfigEntry
++from pytest_homeassistant.components.infrared import (
++    EMITTER_ENTITY_ID,
++    RECEIVER_ENTITY_ID,
++)
++
++from homeassistant.components.sony_bravia_infrared.const import (
++    CONF_INFRARED_ENTITY_ID,
++    CONF_INFRARED_RECEIVER_ENTITY_ID,
++    DOMAIN,
++)
++from homeassistant.config_entries import ConfigEntryState
++from homeassistant.core import HomeAssistant
++from homeassistant.helpers import entity_registry as er
++
++
++async def test_setup_and_unload_entry(
++    hass: HomeAssistant, init_integration: MockConfigEntry
++) -> None:
++    """Test setting up and unloading a config entry."""
++    entry = init_integration
++    assert entry.state is ConfigEntryState.LOADED
++
++    await hass.config_entries.async_unload(entry.entry_id)
++    await hass.async_block_till_done()
++
++    assert entry.state is ConfigEntryState.NOT_LOADED
++
++
++@pytest.mark.parametrize(
++    ("data", "expected_domains"),
++    [
++        pytest.param(
++            {CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID},
++            {"button", "media_player"},
++            id="emitter_only",
++        ),
++        pytest.param(
++            {CONF_INFRARED_RECEIVER_ENTITY_ID: RECEIVER_ENTITY_ID},
++            {"event"},
++            id="receiver_only",
++        ),
++    ],
++)
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity"
++)
++async def test_entities_follow_configured_infrared_entities(
++    hass: HomeAssistant,
++    entity_registry: er.EntityRegistry,
++    data: dict[str, str],
++    expected_domains: set[str],
++) -> None:
++    """Test only the platforms backed by a configured infrared entity add entities."""
++    entry = MockConfigEntry(domain=DOMAIN, data=data)
++    entry.add_to_hass(hass)
++
++    await hass.config_entries.async_setup(entry.entry_id)
++    await hass.async_block_till_done()
++
++    assert entry.state is ConfigEntryState.LOADED
++    assert {
++        entity_entry.domain
++        for entity_entry in er.async_entries_for_config_entry(
++            entity_registry, entry.entry_id
++        )
++    } == expected_domains
+diff --git a/tests/components/sony_bravia_infrared/test_media_player.py b/tests/components/sony_bravia_infrared/test_media_player.py
+new file mode 100644
+index 00000000..d093a502
+--- /dev/null
++++ b/tests/components/sony_bravia_infrared/test_media_player.py
+@@ -0,0 +1,90 @@
++"""Tests for the Sony Bravia Infrared media player platform."""
++
++from infrared_protocols.codes.sony.tv import SonyTVCode
++import pytest
++from pytest_homeassistant.common import MockConfigEntry, snapshot_platform
++from pytest_homeassistant.components.common import (
++    assert_availability_follows_source_entity,
++)
++from pytest_homeassistant.components.infrared import EMITTER_ENTITY_ID
++from pytest_homeassistant.components.infrared.common import MockInfraredEmitterEntity
++from syrupy.assertion import SnapshotAssertion
++
++from homeassistant.components.media_player import (
++    DOMAIN as MEDIA_PLAYER_DOMAIN,
++    SERVICE_MEDIA_NEXT_TRACK,
++    SERVICE_MEDIA_PREVIOUS_TRACK,
++    SERVICE_TURN_OFF,
++    SERVICE_TURN_ON,
++    SERVICE_VOLUME_DOWN,
++    SERVICE_VOLUME_MUTE,
++    SERVICE_VOLUME_UP,
++)
++from homeassistant.const import ATTR_ENTITY_ID, Platform
++from homeassistant.core import HomeAssistant
++from homeassistant.helpers import entity_registry as er
++
++from . import assert_sony_tv_command
++
++MEDIA_PLAYER_ENTITY_ID = "media_player.sony_bravia_tv"
++
++
++@pytest.fixture
++def platforms() -> list[Platform]:
++    """Return platforms to set up."""
++    return [Platform.MEDIA_PLAYER]
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_entities(
++    hass: HomeAssistant,
++    snapshot: SnapshotAssertion,
++    entity_registry: er.EntityRegistry,
++    mock_config_entry: MockConfigEntry,
++) -> None:
++    """Test the media player entity is created with the expected attributes."""
++    await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
++
++
++@pytest.mark.parametrize(
++    ("service", "service_data", "expected_code"),
++    [
++        (SERVICE_TURN_ON, {}, SonyTVCode.POWER),
++        (SERVICE_TURN_OFF, {}, SonyTVCode.POWER),
++        (SERVICE_VOLUME_UP, {}, SonyTVCode.VOLUME_UP),
++        (SERVICE_VOLUME_DOWN, {}, SonyTVCode.VOLUME_DOWN),
++        (SERVICE_VOLUME_MUTE, {"is_volume_muted": True}, SonyTVCode.MUTE),
++        (SERVICE_MEDIA_NEXT_TRACK, {}, SonyTVCode.CHANNEL_UP),
++        (SERVICE_MEDIA_PREVIOUS_TRACK, {}, SonyTVCode.CHANNEL_DOWN),
++    ],
++)
++@pytest.mark.usefixtures("init_integration")
++async def test_media_player_action_sends_correct_code(
++    hass: HomeAssistant,
++    mock_infrared_emitter_entity: MockInfraredEmitterEntity,
++    service: str,
++    service_data: dict[str, bool],
++    expected_code: SonyTVCode,
++) -> None:
++    """Test each media player action sends the correct IR code."""
++    await hass.services.async_call(
++        MEDIA_PLAYER_DOMAIN,
++        service,
++        {ATTR_ENTITY_ID: MEDIA_PLAYER_ENTITY_ID, **service_data},
++        blocking=True,
++    )
++
++    assert len(mock_infrared_emitter_entity.send_command_calls) == 1
++    assert_sony_tv_command(
++        mock_infrared_emitter_entity.send_command_calls[0], expected_code
++    )
++
++
++@pytest.mark.usefixtures("init_integration")
++async def test_media_player_availability_follows_ir_entity(
++    hass: HomeAssistant,
++) -> None:
++    """Test the media player becomes unavailable when the emitter is unavailable."""
++    await assert_availability_follows_source_entity(
++        hass, MEDIA_PLAYER_ENTITY_ID, [EMITTER_ENTITY_ID]
++    )
+-- 
+2.43.0
+
