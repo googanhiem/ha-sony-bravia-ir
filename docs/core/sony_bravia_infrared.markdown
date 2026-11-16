@@ -37,7 +37,9 @@ Once it's set up, you can control your TV from Home Assistant the same way you w
 
 The integration works with Sony TVs that use the standard Sony infrared command set (12-bit SIRC on address 1). That covers Bravia sets from the older KDL models through current Android TV and Google TV models (KD, XR, and K series), and many older Sony TVs before them.
 
-Not every TV responds to every key. Older sets, for example, use **Enter** instead of **OK** to confirm a selection. Keys that only exist on newer remotes, like the app shortcut keys, are not part of this command set.
+Bravia sets also understand a second group of codes (15-bit SIRC) for keys added later. The integration uses these for the discrete HDMI inputs and the playback keys.
+
+Not every TV responds to every key. Older sets, for example, use **Enter** instead of **OK** to confirm a selection, and some older sets don't have the discrete HDMI or playback codes. The app shortcut keys on newer remotes aren't supported.
 
 ## Prerequisites
 
@@ -77,7 +79,9 @@ A media player entity is created when an infrared emitter is configured.
 
 - **Sony Bravia TV**
   - **Description**: Represents the TV and controls it over infrared.
-  - **Supported features**: Turn on, turn off, volume up, volume down, mute, next track (channel up), and previous track (channel down).
+  - **Supported features**: Turn on, turn off, volume up, volume down, mute, next track (channel up), previous track (channel down), play, pause, stop, and select source.
+  - **Sources**: **TV**, **HDMI 1**, **HDMI 2**, **HDMI 3**, **HDMI 4**.
+  - **Remarks**: The TV never reports back, so the power state and source show the last command Home Assistant sent. They're kept across restarts. Using the physical remote doesn't update them.
 
 ### Buttons
 
@@ -85,7 +89,9 @@ Button entities are created when an infrared emitter is configured. Each button 
 
 These buttons are enabled by default:
 
-- **Power**
+- **Power**, **Power on**, **Power off**
+- **HDMI 1**, **HDMI 2**, **HDMI 3**, **HDMI 4**
+- **Play**, **Pause**, **Stop**
 - **Volume up**, **Volume down**, **Mute**
 - **Channel up**, **Channel down**
 - **Input**
@@ -97,9 +103,10 @@ These buttons are [disabled by default](/docs/configuration/customizing-entities
 - **Number 0** through **Number 9**, **Channel dash**, **Enter**
 - **TV**, **HDMI**, **Component**
 - **Red**, **Green**, **Yellow**, **Blue**
+- **Rewind**, **Fast forward**, **Previous**, **Next**
 - **Sleep**, **Jump**, **Favorites**, **Closed captions**, **Audio**, **Picture mode**
 
-**HDMI** and **Component** step through inputs of that type rather than picking a specific input.
+**Power** toggles the TV on or off, while **Power on** and **Power off** always do the same thing no matter what state the TV is in. **HDMI** and **Component** step through inputs of that type, while **HDMI 1** to **HDMI 4** go straight to that input.
 
 ### Events
 
@@ -108,8 +115,9 @@ An event entity is created when an infrared receiver is configured.
 - **Received command**
   - **Description**: Fires when a key press from a Sony TV remote is picked up by the infrared receiver. The event type matches the key that was pressed.
   - **Event types**:
-    - Power and volume: `power`, `mute`, `volume_up`, `volume_down`, `sleep`
-    - Channels and inputs: `channel_up`, `channel_down`, `input`, `tv`, `hdmi`, `component`, `jump`, `favorites`
+    - Power and volume: `power`, `power_on`, `power_off`, `mute`, `volume_up`, `volume_down`, `sleep`
+    - Channels and inputs: `channel_up`, `channel_down`, `input`, `tv`, `hdmi`, `hdmi_1`, `hdmi_2`, `hdmi_3`, `hdmi_4`, `component`, `jump`, `favorites`
+    - Playback: `play`, `pause`, `stop`, `rewind`, `fast_forward`, `previous`, `next`
     - Number keys: `num_0` through `num_9`, `channel_dash`, `enter`
     - Navigation: `nav_up`, `nav_down`, `nav_left`, `nav_right`, `ok`, `home`, `exit`, `info`
     - Picture and sound: `audio`, `picture`, `closed_captions`
@@ -151,6 +159,36 @@ automation: |
 
 {% enddetails %}
 
+### Automation: Switching to the game console when it turns on
+
+- **Trigger**: Entity state changes to on
+  - **Target**: Game console plug (`switch.game_console`)
+- **Action**: Select source
+  - **Target**: Sony Bravia TV (`media_player.sony_bravia_tv`)
+  - **Source**: HDMI 2
+
+{% details "YAML example for switching to the game console" %}
+
+{% example %}
+automation: |
+  alias: "Switch the TV to the game console"
+  triggers:
+    - trigger: state
+      entity_id: switch.game_console
+      to: "on"
+  actions:
+    - action: media_player.turn_on
+      target:
+        entity_id: media_player.sony_bravia_tv
+    - action: media_player.select_source
+      target:
+        entity_id: media_player.sony_bravia_tv
+      data:
+        source: HDMI 2
+{% endexample %}
+
+{% enddetails %}
+
 ### Automation: Turning the TV off when everyone leaves
 
 - **Trigger**: Home becomes empty
@@ -175,14 +213,12 @@ automation: |
 
 {% enddetails %}
 
-Because turning off sends the power toggle, only use this when you're fairly sure the TV is on, for example by checking the power draw of a smart plug first.
-
 ## Known limitations
 
-- The media player and buttons use assumed state. Home Assistant can't check what the TV is actually doing, and key presses from the physical remote show up as events only. They don't update the media player.
-- The Sony command set used here only has a power toggle. Turning on and turning off both send the same command, so if the TV is already on, **Turn on** turns it off.
+- The media player uses assumed state. Home Assistant can't check what the TV is actually doing, and key presses from the physical remote show up as events only. They don't update the media player's power state or source.
 - Volume is step-based only. You can't set an absolute volume level.
-- There are no codes to jump straight to a specific HDMI input, or for the playback keys (play, pause, stop). The media player doesn't support selecting a source or playback controls.
+- Only **TV** and **HDMI 1** to **HDMI 4** can be selected as sources. There are no discrete codes for the other inputs.
+- Playback keys only do something when the TV itself is playing media, like from USB or a built-in app. They don't control devices plugged in over HDMI unless the TV passes them on with HDMI-CEC (Bravia Sync).
 - Quickly pressing the same key twice on the remote can show up as a single event, since a held key and a fast double press look the same to the receiver.
 
 ## Troubleshooting
@@ -191,7 +227,7 @@ Because turning off sends the power toggle, only use this when you're fairly sur
 
 If the entity changes in Home Assistant but the TV doesn't react, the infrared signal probably isn't reaching it. Make sure the emitter points at the TV's IR window and that nothing is in the way. For more steps, see [The device does not respond to commands](/connectivity/infrared/#the-device-does-not-respond-to-commands).
 
-If the TV reacts to most buttons but not one or two, your model probably doesn't have those keys. Try **Enter** if **OK** does nothing.
+If the TV reacts to most buttons but not one or two, your model probably doesn't have those keys. Try **Enter** if **OK** does nothing. If **Power on** or the HDMI sources don't work on an older set, use **Power** and **Input** instead.
 
 ### The event entity doesn't fire when I press a key on the remote
 
