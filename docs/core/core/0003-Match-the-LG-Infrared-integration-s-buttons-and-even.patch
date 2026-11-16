@@ -1,0 +1,1334 @@
+From 992882e076752042fa81033173040b0f17806743 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 16 Nov 2026 11:18:40 +0000
+Subject: [PATCH 3/3] Match the LG Infrared integration's buttons and event names
+
+Use up, down, left and right for the arrow keys, drop buttons for keys the
+media player already covers, only disable the rarely used keys, and list
+the buttons and event types explicitly. Mark the quality scale as
+platinum, since strict typing is done and the other rules are exempt.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RrPaBaU6zM6AhoWcyUefct
+---
+ .../components/sony_bravia_infrared/button.py | 197 +++++++--
+ .../components/sony_bravia_infrared/event.py  |  70 ++-
+ .../sony_bravia_infrared/icons.json           |  42 +-
+ .../sony_bravia_infrared/manifest.json        |   2 +-
+ .../sony_bravia_infrared/strings.json         |  50 +--
+ .../snapshots/test_button.ambr                | 416 +-----------------
+ .../snapshots/test_event.ambr                 | 148 +++----
+ .../sony_bravia_infrared/test_button.py       |  36 +-
+ .../sony_bravia_infrared/test_event.py        |   3 +-
+ 9 files changed, 355 insertions(+), 609 deletions(-)
+
+diff --git a/homeassistant/components/sony_bravia_infrared/button.py b/homeassistant/components/sony_bravia_infrared/button.py
+index 5190fd16..36c8adf3 100644
+--- a/homeassistant/components/sony_bravia_infrared/button.py
++++ b/homeassistant/components/sony_bravia_infrared/button.py
+@@ -16,39 +16,6 @@ from .entity import SonyBraviaIrEntity, sirc_command
+ 
+ PARALLEL_UPDATES = 1
+ 
+-# Keys that are less commonly automated, or not present on every remote.
+-_DISABLED_BY_DEFAULT: set[SonyTVCode | SonyTVExtendedCode] = {
+-    SonyTVCode.SLEEP,
+-    SonyTVCode.NUM_0,
+-    SonyTVCode.NUM_1,
+-    SonyTVCode.NUM_2,
+-    SonyTVCode.NUM_3,
+-    SonyTVCode.NUM_4,
+-    SonyTVCode.NUM_5,
+-    SonyTVCode.NUM_6,
+-    SonyTVCode.NUM_7,
+-    SonyTVCode.NUM_8,
+-    SonyTVCode.NUM_9,
+-    SonyTVCode.CHANNEL_DASH,
+-    SonyTVCode.ENTER,
+-    SonyTVCode.JUMP,
+-    SonyTVCode.FAVORITES,
+-    SonyTVCode.CLOSED_CAPTIONS,
+-    SonyTVCode.AUDIO,
+-    SonyTVCode.PICTURE,
+-    SonyTVCode.TV,
+-    SonyTVCode.HDMI,
+-    SonyTVCode.COMPONENT,
+-    SonyTVCode.RED,
+-    SonyTVCode.GREEN,
+-    SonyTVCode.YELLOW,
+-    SonyTVCode.BLUE,
+-    SonyTVExtendedCode.REWIND,
+-    SonyTVExtendedCode.FAST_FORWARD,
+-    SonyTVExtendedCode.PREVIOUS,
+-    SonyTVExtendedCode.NEXT,
+-}
+-
+ 
+ @dataclass(frozen=True, kw_only=True)
+ class SonyBraviaIrButtonEntityDescription(ButtonEntityDescription):
+@@ -57,14 +24,164 @@ class SonyBraviaIrButtonEntityDescription(ButtonEntityDescription):
+     command_code: SonyTVCode | SonyTVExtendedCode
+ 
+ 
+-BUTTON_DESCRIPTIONS: tuple[SonyBraviaIrButtonEntityDescription, ...] = tuple(
++# Volume, mute, channel and play/pause/stop are covered by the media player.
++BUTTON_DESCRIPTIONS: tuple[SonyBraviaIrButtonEntityDescription, ...] = (
+     SonyBraviaIrButtonEntityDescription(
+-        key=code.name.lower(),
+-        translation_key=code.name.lower(),
+-        command_code=code,
+-        entity_registry_enabled_default=code not in _DISABLED_BY_DEFAULT,
+-    )
+-    for code in (*SonyTVCode, *SonyTVExtendedCode)
++        key="power", translation_key="power", command_code=SonyTVCode.POWER
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="power_on", translation_key="power_on", command_code=SonyTVCode.POWER_ON
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="power_off", translation_key="power_off", command_code=SonyTVCode.POWER_OFF
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="input", translation_key="input", command_code=SonyTVCode.INPUT
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="tv", translation_key="tv", command_code=SonyTVCode.TV
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="hdmi_1", translation_key="hdmi_1", command_code=SonyTVExtendedCode.HDMI_1
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="hdmi_2", translation_key="hdmi_2", command_code=SonyTVExtendedCode.HDMI_2
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="hdmi_3", translation_key="hdmi_3", command_code=SonyTVExtendedCode.HDMI_3
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="hdmi_4", translation_key="hdmi_4", command_code=SonyTVExtendedCode.HDMI_4
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="hdmi", translation_key="hdmi", command_code=SonyTVCode.HDMI
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="component",
++        translation_key="component",
++        command_code=SonyTVCode.COMPONENT,
++        entity_registry_enabled_default=False,
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="up", translation_key="up", command_code=SonyTVCode.NAV_UP
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="down", translation_key="down", command_code=SonyTVCode.NAV_DOWN
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="left", translation_key="left", command_code=SonyTVCode.NAV_LEFT
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="right", translation_key="right", command_code=SonyTVCode.NAV_RIGHT
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="ok", translation_key="ok", command_code=SonyTVCode.OK
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="enter", translation_key="enter", command_code=SonyTVCode.ENTER
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="home", translation_key="home", command_code=SonyTVCode.HOME
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="exit", translation_key="exit", command_code=SonyTVCode.EXIT
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="info", translation_key="info", command_code=SonyTVCode.INFO
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_0", translation_key="num_0", command_code=SonyTVCode.NUM_0
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_1", translation_key="num_1", command_code=SonyTVCode.NUM_1
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_2", translation_key="num_2", command_code=SonyTVCode.NUM_2
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_3", translation_key="num_3", command_code=SonyTVCode.NUM_3
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_4", translation_key="num_4", command_code=SonyTVCode.NUM_4
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_5", translation_key="num_5", command_code=SonyTVCode.NUM_5
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_6", translation_key="num_6", command_code=SonyTVCode.NUM_6
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_7", translation_key="num_7", command_code=SonyTVCode.NUM_7
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_8", translation_key="num_8", command_code=SonyTVCode.NUM_8
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="num_9", translation_key="num_9", command_code=SonyTVCode.NUM_9
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="channel_dash",
++        translation_key="channel_dash",
++        command_code=SonyTVCode.CHANNEL_DASH,
++        entity_registry_enabled_default=False,
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="red", translation_key="red", command_code=SonyTVCode.RED
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="green", translation_key="green", command_code=SonyTVCode.GREEN
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="yellow", translation_key="yellow", command_code=SonyTVCode.YELLOW
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="blue", translation_key="blue", command_code=SonyTVCode.BLUE
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="rewind", translation_key="rewind", command_code=SonyTVExtendedCode.REWIND
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="fast_forward",
++        translation_key="fast_forward",
++        command_code=SonyTVExtendedCode.FAST_FORWARD,
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="previous",
++        translation_key="previous",
++        command_code=SonyTVExtendedCode.PREVIOUS,
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="next", translation_key="next", command_code=SonyTVExtendedCode.NEXT
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="closed_captions",
++        translation_key="closed_captions",
++        command_code=SonyTVCode.CLOSED_CAPTIONS,
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="audio", translation_key="audio", command_code=SonyTVCode.AUDIO
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="picture", translation_key="picture", command_code=SonyTVCode.PICTURE
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="sleep",
++        translation_key="sleep",
++        command_code=SonyTVCode.SLEEP,
++        entity_registry_enabled_default=False,
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="jump",
++        translation_key="jump",
++        command_code=SonyTVCode.JUMP,
++        entity_registry_enabled_default=False,
++    ),
++    SonyBraviaIrButtonEntityDescription(
++        key="favorites",
++        translation_key="favorites",
++        command_code=SonyTVCode.FAVORITES,
++        entity_registry_enabled_default=False,
++    ),
+ )
+ 
+ 
+diff --git a/homeassistant/components/sony_bravia_infrared/event.py b/homeassistant/components/sony_bravia_infrared/event.py
+index 3abe9043..912c1630 100644
+--- a/homeassistant/components/sony_bravia_infrared/event.py
++++ b/homeassistant/components/sony_bravia_infrared/event.py
+@@ -30,11 +30,62 @@ _LOGGER = logging.getLogger(__name__)
+ PARALLEL_UPDATES = 0
+ 
+ _EVENT_TYPE_UNKNOWN = "unknown"
+-_EVENT_TYPES: list[str] = [
+-    *(code.name.lower() for code in SonyTVCode),
+-    *(code.name.lower() for code in SonyTVExtendedCode),
+-    _EVENT_TYPE_UNKNOWN,
+-]
++_COMMAND_CODE_TO_EVENT_TYPE: dict[SonyTVCode | SonyTVExtendedCode, str] = {
++    SonyTVCode.AUDIO: "audio",
++    SonyTVCode.BLUE: "blue",
++    SonyTVCode.CHANNEL_DASH: "channel_dash",
++    SonyTVCode.CHANNEL_DOWN: "channel_down",
++    SonyTVCode.CHANNEL_UP: "channel_up",
++    SonyTVCode.CLOSED_CAPTIONS: "closed_captions",
++    SonyTVCode.COMPONENT: "component",
++    SonyTVCode.NAV_DOWN: "down",
++    SonyTVCode.ENTER: "enter",
++    SonyTVCode.EXIT: "exit",
++    SonyTVExtendedCode.FAST_FORWARD: "fast_forward",
++    SonyTVCode.FAVORITES: "favorites",
++    SonyTVCode.GREEN: "green",
++    SonyTVCode.HDMI: "hdmi",
++    SonyTVExtendedCode.HDMI_1: "hdmi_1",
++    SonyTVExtendedCode.HDMI_2: "hdmi_2",
++    SonyTVExtendedCode.HDMI_3: "hdmi_3",
++    SonyTVExtendedCode.HDMI_4: "hdmi_4",
++    SonyTVCode.HOME: "home",
++    SonyTVCode.INFO: "info",
++    SonyTVCode.INPUT: "input",
++    SonyTVCode.JUMP: "jump",
++    SonyTVCode.NAV_LEFT: "left",
++    SonyTVCode.MUTE: "mute",
++    SonyTVExtendedCode.NEXT: "next",
++    SonyTVCode.NUM_0: "num_0",
++    SonyTVCode.NUM_1: "num_1",
++    SonyTVCode.NUM_2: "num_2",
++    SonyTVCode.NUM_3: "num_3",
++    SonyTVCode.NUM_4: "num_4",
++    SonyTVCode.NUM_5: "num_5",
++    SonyTVCode.NUM_6: "num_6",
++    SonyTVCode.NUM_7: "num_7",
++    SonyTVCode.NUM_8: "num_8",
++    SonyTVCode.NUM_9: "num_9",
++    SonyTVCode.OK: "ok",
++    SonyTVExtendedCode.PAUSE: "pause",
++    SonyTVCode.PICTURE: "picture",
++    SonyTVExtendedCode.PLAY: "play",
++    SonyTVCode.POWER: "power",
++    SonyTVCode.POWER_OFF: "power_off",
++    SonyTVCode.POWER_ON: "power_on",
++    SonyTVExtendedCode.PREVIOUS: "previous",
++    SonyTVCode.RED: "red",
++    SonyTVExtendedCode.REWIND: "rewind",
++    SonyTVCode.NAV_RIGHT: "right",
++    SonyTVCode.SLEEP: "sleep",
++    SonyTVExtendedCode.STOP: "stop",
++    SonyTVCode.TV: "tv",
++    SonyTVCode.NAV_UP: "up",
++    SonyTVCode.VOLUME_DOWN: "volume_down",
++    SonyTVCode.VOLUME_UP: "volume_up",
++    SonyTVCode.YELLOW: "yellow",
++}
++_EVENT_TYPES: list[str] = [*_COMMAND_CODE_TO_EVENT_TYPE.values(), _EVENT_TYPE_UNKNOWN]
+ 
+ # A Sony remote repeats the frame every 45 ms while a key is held, and many
+ # receivers report each frame as its own signal.
+@@ -103,16 +154,19 @@ def _event_type(sony_command: SonyCommand) -> str | None:
+     """Return the event type of a Sony TV key, or None for other devices."""
+     if sony_command.address_bits == SONY_TV_EXTENDED_ADDRESS_BITS:
+         try:
+-            code = SonyTVExtendedCode((sony_command.address, sony_command.command))
++            extended_code = SonyTVExtendedCode(
++                (sony_command.address, sony_command.command)
++            )
+         except ValueError:
+             return None
+-        return code.name.lower()
++        return _COMMAND_CODE_TO_EVENT_TYPE.get(extended_code, _EVENT_TYPE_UNKNOWN)
+     if (
+         sony_command.address != SONY_TV_ADDRESS
+         or sony_command.address_bits != SONY_TV_ADDRESS_BITS
+     ):
+         return None
+     try:
+-        return SonyTVCode(sony_command.command).name.lower()
++        code = SonyTVCode(sony_command.command)
+     except ValueError:
+         return _EVENT_TYPE_UNKNOWN
++    return _COMMAND_CODE_TO_EVENT_TYPE.get(code, _EVENT_TYPE_UNKNOWN)
+diff --git a/homeassistant/components/sony_bravia_infrared/icons.json b/homeassistant/components/sony_bravia_infrared/icons.json
+index 7c761876..52d38633 100644
+--- a/homeassistant/components/sony_bravia_infrared/icons.json
++++ b/homeassistant/components/sony_bravia_infrared/icons.json
+@@ -10,18 +10,15 @@
+       "channel_dash": {
+         "default": "mdi:minus"
+       },
+-      "channel_down": {
+-        "default": "mdi:arrow-down-bold"
+-      },
+-      "channel_up": {
+-        "default": "mdi:arrow-up-bold"
+-      },
+       "closed_captions": {
+         "default": "mdi:closed-caption"
+       },
+       "component": {
+         "default": "mdi:video-input-component"
+       },
++      "down": {
++        "default": "mdi:arrow-down"
++      },
+       "enter": {
+         "default": "mdi:keyboard-return"
+       },
+@@ -64,21 +61,9 @@
+       "jump": {
+         "default": "mdi:swap-horizontal"
+       },
+-      "mute": {
+-        "default": "mdi:volume-mute"
+-      },
+-      "nav_down": {
+-        "default": "mdi:arrow-down"
+-      },
+-      "nav_left": {
++      "left": {
+         "default": "mdi:arrow-left"
+       },
+-      "nav_right": {
+-        "default": "mdi:arrow-right"
+-      },
+-      "nav_up": {
+-        "default": "mdi:arrow-up"
+-      },
+       "next": {
+         "default": "mdi:skip-next"
+       },
+@@ -115,15 +100,9 @@
+       "ok": {
+         "default": "mdi:checkbox-blank-circle-outline"
+       },
+-      "pause": {
+-        "default": "mdi:pause"
+-      },
+       "picture": {
+         "default": "mdi:image"
+       },
+-      "play": {
+-        "default": "mdi:play"
+-      },
+       "power": {
+         "default": "mdi:power"
+       },
+@@ -142,20 +121,17 @@
+       "rewind": {
+         "default": "mdi:rewind"
+       },
++      "right": {
++        "default": "mdi:arrow-right"
++      },
+       "sleep": {
+         "default": "mdi:sleep"
+       },
+-      "stop": {
+-        "default": "mdi:stop"
+-      },
+       "tv": {
+         "default": "mdi:television-classic"
+       },
+-      "volume_down": {
+-        "default": "mdi:volume-minus"
+-      },
+-      "volume_up": {
+-        "default": "mdi:volume-plus"
++      "up": {
++        "default": "mdi:arrow-up"
+       },
+       "yellow": {
+         "default": "mdi:circle"
+diff --git a/homeassistant/components/sony_bravia_infrared/manifest.json b/homeassistant/components/sony_bravia_infrared/manifest.json
+index 70ade81e..cb75275d 100644
+--- a/homeassistant/components/sony_bravia_infrared/manifest.json
++++ b/homeassistant/components/sony_bravia_infrared/manifest.json
+@@ -9,5 +9,5 @@
+   "documentation": "https://www.home-assistant.io/integrations/sony_bravia_infrared",
+   "integration_type": "device",
+   "iot_class": "assumed_state",
+-  "quality_scale": "gold"
++  "quality_scale": "platinum"
+ }
+diff --git a/homeassistant/components/sony_bravia_infrared/strings.json b/homeassistant/components/sony_bravia_infrared/strings.json
+index 015b0a47..25cb277e 100644
+--- a/homeassistant/components/sony_bravia_infrared/strings.json
++++ b/homeassistant/components/sony_bravia_infrared/strings.json
+@@ -45,18 +45,15 @@
+       "channel_dash": {
+         "name": "Channel dash"
+       },
+-      "channel_down": {
+-        "name": "Channel down"
+-      },
+-      "channel_up": {
+-        "name": "Channel up"
+-      },
+       "closed_captions": {
+         "name": "Closed captions"
+       },
+       "component": {
+         "name": "Component"
+       },
++      "down": {
++        "name": "[%key:common::entity::button::down::name%]"
++      },
+       "enter": {
+         "name": "Enter"
+       },
+@@ -99,21 +96,9 @@
+       "jump": {
+         "name": "Jump"
+       },
+-      "mute": {
+-        "name": "Mute"
+-      },
+-      "nav_down": {
+-        "name": "[%key:common::entity::button::down::name%]"
+-      },
+-      "nav_left": {
++      "left": {
+         "name": "[%key:common::entity::button::left::name%]"
+       },
+-      "nav_right": {
+-        "name": "[%key:common::entity::button::right::name%]"
+-      },
+-      "nav_up": {
+-        "name": "[%key:common::entity::button::up::name%]"
+-      },
+       "next": {
+         "name": "Next"
+       },
+@@ -150,15 +135,9 @@
+       "ok": {
+         "name": "[%key:common::entity::button::ok::name%]"
+       },
+-      "pause": {
+-        "name": "Pause"
+-      },
+       "picture": {
+         "name": "Picture mode"
+       },
+-      "play": {
+-        "name": "Play"
+-      },
+       "power": {
+         "name": "[%key:common::entity::button::power::name%]"
+       },
+@@ -177,20 +156,17 @@
+       "rewind": {
+         "name": "Rewind"
+       },
++      "right": {
++        "name": "[%key:common::entity::button::right::name%]"
++      },
+       "sleep": {
+         "name": "Sleep"
+       },
+-      "stop": {
+-        "name": "Stop"
+-      },
+       "tv": {
+         "name": "TV"
+       },
+-      "volume_down": {
+-        "name": "Volume down"
+-      },
+-      "volume_up": {
+-        "name": "Volume up"
++      "up": {
++        "name": "[%key:common::entity::button::up::name%]"
+       },
+       "yellow": {
+         "name": "Yellow"
+@@ -209,6 +185,7 @@
+               "channel_up": "Channel up",
+               "closed_captions": "Closed captions",
+               "component": "Component",
++              "down": "[%key:common::entity::button::down::name%]",
+               "enter": "Enter",
+               "exit": "[%key:common::entity::button::exit::name%]",
+               "fast_forward": "Fast forward",
+@@ -223,11 +200,8 @@
+               "info": "[%key:common::entity::button::info::name%]",
+               "input": "[%key:common::entity::button::input::name%]",
+               "jump": "Jump",
++              "left": "[%key:common::entity::button::left::name%]",
+               "mute": "Mute",
+-              "nav_down": "[%key:common::entity::button::down::name%]",
+-              "nav_left": "[%key:common::entity::button::left::name%]",
+-              "nav_right": "[%key:common::entity::button::right::name%]",
+-              "nav_up": "[%key:common::entity::button::up::name%]",
+               "next": "Next",
+               "num_0": "[%key:common::entity::button::num_0::name%]",
+               "num_1": "[%key:common::entity::button::num_1::name%]",
+@@ -249,10 +223,12 @@
+               "previous": "Previous",
+               "red": "Red",
+               "rewind": "Rewind",
++              "right": "[%key:common::entity::button::right::name%]",
+               "sleep": "Sleep",
+               "stop": "Stop",
+               "tv": "TV",
+               "unknown": "Unknown",
++              "up": "[%key:common::entity::button::up::name%]",
+               "volume_down": "Volume down",
+               "volume_up": "Volume up",
+               "yellow": "Yellow"
+diff --git a/tests/components/sony_bravia_infrared/snapshots/test_button.ambr b/tests/components/sony_bravia_infrared/snapshots/test_button.ambr
+index 9297573b..45eb18cf 100644
+--- a/tests/components/sony_bravia_infrared/snapshots/test_button.ambr
++++ b/tests/components/sony_bravia_infrared/snapshots/test_button.ambr
+@@ -149,106 +149,6 @@
+     'state': 'unknown',
+   })
+ # ---
+-# name: test_entities[button.sony_bravia_tv_channel_down-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_channel_down',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Channel down',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Channel down',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'channel_down',
+-    'unique_id': '01JTEST0000000000000000000_channel_down',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_channel_down-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Channel down',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_channel_down',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_channel_up-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_channel_up',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Channel up',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Channel up',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'channel_up',
+-    'unique_id': '01JTEST0000000000000000000_channel_up',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_channel_up-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Channel up',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_channel_up',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+ # name: test_entities[button.sony_bravia_tv_closed_captions-entry]
+   EntityRegistryEntrySnapshot({
+     'aliases': list([
+@@ -381,8 +281,8 @@
+     'previous_unique_id': None,
+     'suggested_object_id': None,
+     'supported_features': 0,
+-    'translation_key': 'nav_down',
+-    'unique_id': '01JTEST0000000000000000000_nav_down',
++    'translation_key': 'down',
++    'unique_id': '01JTEST0000000000000000000_down',
+     'unit_of_measurement': None,
+   })
+ # ---
+@@ -1131,8 +1031,8 @@
+     'previous_unique_id': None,
+     'suggested_object_id': None,
+     'supported_features': 0,
+-    'translation_key': 'nav_left',
+-    'unique_id': '01JTEST0000000000000000000_nav_left',
++    'translation_key': 'left',
++    'unique_id': '01JTEST0000000000000000000_left',
+     'unit_of_measurement': None,
+   })
+ # ---
+@@ -1149,56 +1049,6 @@
+     'state': 'unknown',
+   })
+ # ---
+-# name: test_entities[button.sony_bravia_tv_mute-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_mute',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Mute',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Mute',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'mute',
+-    'unique_id': '01JTEST0000000000000000000_mute',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_mute-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Mute',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_mute',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+ # name: test_entities[button.sony_bravia_tv_next-entry]
+   EntityRegistryEntrySnapshot({
+     'aliases': list([
+@@ -1799,56 +1649,6 @@
+     'state': 'unknown',
+   })
+ # ---
+-# name: test_entities[button.sony_bravia_tv_pause-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_pause',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Pause',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Pause',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'pause',
+-    'unique_id': '01JTEST0000000000000000000_pause',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_pause-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Pause',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_pause',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+ # name: test_entities[button.sony_bravia_tv_picture_mode-entry]
+   EntityRegistryEntrySnapshot({
+     'aliases': list([
+@@ -1899,56 +1699,6 @@
+     'state': 'unknown',
+   })
+ # ---
+-# name: test_entities[button.sony_bravia_tv_play-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_play',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Play',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Play',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'play',
+-    'unique_id': '01JTEST0000000000000000000_play',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_play-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Play',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_play',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+ # name: test_entities[button.sony_bravia_tv_power-entry]
+   EntityRegistryEntrySnapshot({
+     'aliases': list([
+@@ -2281,8 +2031,8 @@
+     'previous_unique_id': None,
+     'suggested_object_id': None,
+     'supported_features': 0,
+-    'translation_key': 'nav_right',
+-    'unique_id': '01JTEST0000000000000000000_nav_right',
++    'translation_key': 'right',
++    'unique_id': '01JTEST0000000000000000000_right',
+     'unit_of_measurement': None,
+   })
+ # ---
+@@ -2349,56 +2099,6 @@
+     'state': 'unknown',
+   })
+ # ---
+-# name: test_entities[button.sony_bravia_tv_stop-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_stop',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Stop',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Stop',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'stop',
+-    'unique_id': '01JTEST0000000000000000000_stop',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_stop-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Stop',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_stop',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+ # name: test_entities[button.sony_bravia_tv_tv-entry]
+   EntityRegistryEntrySnapshot({
+     'aliases': list([
+@@ -2481,8 +2181,8 @@
+     'previous_unique_id': None,
+     'suggested_object_id': None,
+     'supported_features': 0,
+-    'translation_key': 'nav_up',
+-    'unique_id': '01JTEST0000000000000000000_nav_up',
++    'translation_key': 'up',
++    'unique_id': '01JTEST0000000000000000000_up',
+     'unit_of_measurement': None,
+   })
+ # ---
+@@ -2499,106 +2199,6 @@
+     'state': 'unknown',
+   })
+ # ---
+-# name: test_entities[button.sony_bravia_tv_volume_down-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_volume_down',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Volume down',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Volume down',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'volume_down',
+-    'unique_id': '01JTEST0000000000000000000_volume_down',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_volume_down-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Volume down',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_volume_down',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_volume_up-entry]
+-  EntityRegistryEntrySnapshot({
+-    'aliases': list([
+-      None,
+-    ]),
+-    'area_id': None,
+-    'capabilities': None,
+-    'config_entry_id': <ANY>,
+-    'config_subentry_id': None,
+-    'device_class': None,
+-    'device_id': <DeviceEntry identifiers=[('sony_bravia_infrared', '01JTEST0000000000000000000')]>,
+-    'disabled_by': None,
+-    'domain': 'button',
+-    'entity_category': None,
+-    'entity_id': 'button.sony_bravia_tv_volume_up',
+-    'has_entity_name': True,
+-    'hidden_by': None,
+-    'icon': None,
+-    'id': <ANY>,
+-    'labels': set({
+-    }),
+-    'name': None,
+-    'object_id_base': 'Volume up',
+-    'options': dict({
+-    }),
+-    'original_device_class': None,
+-    'original_icon': None,
+-    'original_name': 'Volume up',
+-    'platform': 'sony_bravia_infrared',
+-    'previous_unique_id': None,
+-    'suggested_object_id': None,
+-    'supported_features': 0,
+-    'translation_key': 'volume_up',
+-    'unique_id': '01JTEST0000000000000000000_volume_up',
+-    'unit_of_measurement': None,
+-  })
+-# ---
+-# name: test_entities[button.sony_bravia_tv_volume_up-state]
+-  StateSnapshot({
+-    'attributes': ReadOnlyDict({
+-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Volume up',
+-    }),
+-    'context': <ANY>,
+-    'entity_id': 'button.sony_bravia_tv_volume_up',
+-    'last_changed': <ANY>,
+-    'last_reported': <ANY>,
+-    'last_updated': <ANY>,
+-    'state': 'unknown',
+-  })
+-# ---
+ # name: test_entities[button.sony_bravia_tv_yellow-entry]
+   EntityRegistryEntrySnapshot({
+     'aliases': list([
+diff --git a/tests/components/sony_bravia_infrared/snapshots/test_event.ambr b/tests/components/sony_bravia_infrared/snapshots/test_event.ambr
+index a93a9b88..d68ec393 100644
+--- a/tests/components/sony_bravia_infrared/snapshots/test_event.ambr
++++ b/tests/components/sony_bravia_infrared/snapshots/test_event.ambr
+@@ -7,16 +7,31 @@
+     'area_id': None,
+     'capabilities': dict({
+       <EventEntityCapabilityAttribute.EVENT_TYPES: 'event_types'>: list([
+-        'power',
+-        'power_on',
+-        'power_off',
+-        'mute',
+-        'volume_up',
+-        'volume_down',
+-        'channel_up',
++        'audio',
++        'blue',
++        'channel_dash',
+         'channel_down',
++        'channel_up',
++        'closed_captions',
++        'component',
++        'down',
++        'enter',
++        'exit',
++        'fast_forward',
++        'favorites',
++        'green',
++        'hdmi',
++        'hdmi_1',
++        'hdmi_2',
++        'hdmi_3',
++        'hdmi_4',
++        'home',
++        'info',
+         'input',
+-        'sleep',
++        'jump',
++        'left',
++        'mute',
++        'next',
+         'num_0',
+         'num_1',
+         'num_2',
+@@ -27,39 +42,24 @@
+         'num_7',
+         'num_8',
+         'num_9',
+-        'channel_dash',
+-        'enter',
+-        'nav_up',
+-        'nav_down',
+-        'nav_left',
+-        'nav_right',
+         'ok',
+-        'home',
+-        'exit',
+-        'info',
+-        'jump',
+-        'favorites',
+-        'closed_captions',
+-        'audio',
++        'pause',
+         'picture',
+-        'tv',
+-        'hdmi',
+-        'component',
+-        'red',
+-        'green',
+-        'yellow',
+-        'blue',
+-        'hdmi_1',
+-        'hdmi_2',
+-        'hdmi_3',
+-        'hdmi_4',
+         'play',
+-        'pause',
+-        'stop',
+-        'rewind',
+-        'fast_forward',
++        'power',
++        'power_off',
++        'power_on',
+         'previous',
+-        'next',
++        'red',
++        'rewind',
++        'right',
++        'sleep',
++        'stop',
++        'tv',
++        'up',
++        'volume_down',
++        'volume_up',
++        'yellow',
+         'unknown',
+       ]),
+     }),
+@@ -98,16 +98,31 @@
+     'attributes': ReadOnlyDict({
+       <EventEntityStateAttribute.EVENT_TYPE: 'event_type'>: None,
+       <EventEntityCapabilityAttribute.EVENT_TYPES: 'event_types'>: list([
+-        'power',
+-        'power_on',
+-        'power_off',
+-        'mute',
+-        'volume_up',
+-        'volume_down',
+-        'channel_up',
++        'audio',
++        'blue',
++        'channel_dash',
+         'channel_down',
++        'channel_up',
++        'closed_captions',
++        'component',
++        'down',
++        'enter',
++        'exit',
++        'fast_forward',
++        'favorites',
++        'green',
++        'hdmi',
++        'hdmi_1',
++        'hdmi_2',
++        'hdmi_3',
++        'hdmi_4',
++        'home',
++        'info',
+         'input',
+-        'sleep',
++        'jump',
++        'left',
++        'mute',
++        'next',
+         'num_0',
+         'num_1',
+         'num_2',
+@@ -118,39 +133,24 @@
+         'num_7',
+         'num_8',
+         'num_9',
+-        'channel_dash',
+-        'enter',
+-        'nav_up',
+-        'nav_down',
+-        'nav_left',
+-        'nav_right',
+         'ok',
+-        'home',
+-        'exit',
+-        'info',
+-        'jump',
+-        'favorites',
+-        'closed_captions',
+-        'audio',
++        'pause',
+         'picture',
+-        'tv',
+-        'hdmi',
+-        'component',
+-        'red',
+-        'green',
+-        'yellow',
+-        'blue',
+-        'hdmi_1',
+-        'hdmi_2',
+-        'hdmi_3',
+-        'hdmi_4',
+         'play',
+-        'pause',
+-        'stop',
+-        'rewind',
+-        'fast_forward',
++        'power',
++        'power_off',
++        'power_on',
+         'previous',
+-        'next',
++        'red',
++        'rewind',
++        'right',
++        'sleep',
++        'stop',
++        'tv',
++        'up',
++        'volume_down',
++        'volume_up',
++        'yellow',
+         'unknown',
+       ]),
+       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Sony Bravia TV Received command',
+diff --git a/tests/components/sony_bravia_infrared/test_button.py b/tests/components/sony_bravia_infrared/test_button.py
+index fed44d56..b49ad157 100644
+--- a/tests/components/sony_bravia_infrared/test_button.py
++++ b/tests/components/sony_bravia_infrared/test_button.py
+@@ -11,6 +11,7 @@ from pytest_homeassistant.components.infrared.common import MockInfraredEmitterE
+ from syrupy.assertion import SnapshotAssertion
+ 
+ from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, ButtonService
++from homeassistant.components.sony_bravia_infrared.button import BUTTON_DESCRIPTIONS
+ from homeassistant.const import CommonServiceArgument, Platform
+ from homeassistant.core import HomeAssistant
+ from homeassistant.helpers import device_registry as dr, entity_registry as er
+@@ -43,7 +44,7 @@ async def test_entities(
+     entity_entries = er.async_entries_for_config_entry(
+         entity_registry, mock_config_entry.entry_id
+     )
+-    assert len(entity_entries) == len(SonyTVCode) + len(SonyTVExtendedCode)
++    assert len(entity_entries) == len(BUTTON_DESCRIPTIONS)
+     for entity_entry in entity_entries:
+         assert entity_entry.device_id == device_entry.id
+ 
+@@ -63,7 +64,7 @@ async def test_entities(
+         ("button.sony_bravia_tv_power_off", SonyTVCode.POWER_OFF),
+         ("button.sony_bravia_tv_hdmi_1", SonyTVExtendedCode.HDMI_1),
+         ("button.sony_bravia_tv_hdmi_4", SonyTVExtendedCode.HDMI_4),
+-        ("button.sony_bravia_tv_play", SonyTVExtendedCode.PLAY),
++        ("button.sony_bravia_tv_left", SonyTVCode.NAV_LEFT),
+         ("button.sony_bravia_tv_fast_forward", SonyTVExtendedCode.FAST_FORWARD),
+         ("button.sony_bravia_tv_next", SonyTVExtendedCode.NEXT),
+     ],
+@@ -93,12 +94,15 @@ async def test_button_press_sends_correct_code(
+     ("entity_id", "disabled_by"),
+     [
+         ("button.sony_bravia_tv_power", None),
+-        ("button.sony_bravia_tv_volume_up", None),
+-        ("button.sony_bravia_tv_number_5", er.RegistryEntryDisabler.INTEGRATION),
+-        ("button.sony_bravia_tv_blue", er.RegistryEntryDisabler.INTEGRATION),
++        ("button.sony_bravia_tv_number_5", None),
++        ("button.sony_bravia_tv_blue", None),
+         ("button.sony_bravia_tv_hdmi_1", None),
+-        ("button.sony_bravia_tv_play", None),
+-        ("button.sony_bravia_tv_rewind", er.RegistryEntryDisabler.INTEGRATION),
++        ("button.sony_bravia_tv_rewind", None),
++        ("button.sony_bravia_tv_sleep", er.RegistryEntryDisabler.INTEGRATION),
++        ("button.sony_bravia_tv_jump", er.RegistryEntryDisabler.INTEGRATION),
++        ("button.sony_bravia_tv_favorites", er.RegistryEntryDisabler.INTEGRATION),
++        ("button.sony_bravia_tv_channel_dash", er.RegistryEntryDisabler.INTEGRATION),
++        ("button.sony_bravia_tv_component", er.RegistryEntryDisabler.INTEGRATION),
+     ],
+ )
+ @pytest.mark.usefixtures("init_integration")
+@@ -121,3 +125,21 @@ async def test_button_availability_follows_ir_entity(
+     await assert_availability_follows_source_entity(
+         hass, "button.sony_bravia_tv_power", [EMITTER_ENTITY_ID]
+     )
++
++
++@pytest.mark.parametrize(
++    "entity_id",
++    [
++        "button.sony_bravia_tv_volume_up",
++        "button.sony_bravia_tv_mute",
++        "button.sony_bravia_tv_channel_up",
++        "button.sony_bravia_tv_play",
++        "button.sony_bravia_tv_stop",
++    ],
++)
++@pytest.mark.usefixtures("entity_registry_enabled_by_default", "init_integration")
++async def test_media_player_keys_have_no_button(
++    entity_registry: er.EntityRegistry, entity_id: str
++) -> None:
++    """Test keys the media player already covers are not duplicated as buttons."""
++    assert entity_registry.async_get(entity_id) is None
+diff --git a/tests/components/sony_bravia_infrared/test_event.py b/tests/components/sony_bravia_infrared/test_event.py
+index 2dd5618a..70ebe8b2 100644
+--- a/tests/components/sony_bravia_infrared/test_event.py
++++ b/tests/components/sony_bravia_infrared/test_event.py
+@@ -76,7 +76,8 @@ async def test_entities(
+         ({"command": SonyTVCode.POWER}, "power"),
+         ({"command": SonyTVCode.POWER_ON}, "power_on"),
+         ({"command": SonyTVCode.VOLUME_UP}, "volume_up"),
+-        ({"command": SonyTVCode.NAV_UP}, "nav_up"),
++        ({"command": SonyTVCode.NAV_UP}, "up"),
++        ({"command": SonyTVCode.NAV_RIGHT}, "right"),
+         ({"command": SonyTVCode.NUM_0}, "num_0"),
+         ({"command": SonyTVCode.CLOSED_CAPTIONS}, "closed_captions"),
+         ({"command": 0x30}, "unknown"),
+-- 
+2.43.0
+

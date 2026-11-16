@@ -15,7 +15,7 @@ ha_platforms:
   - diagnostics
   - event
   - media_player
-ha_quality_scale: gold
+ha_quality_scale: platinum
 ---
 
 The **Sony Bravia Infrared** {% term integration %} lets you control a Sony Bravia TV using any infrared emitter you already have set up in Home Assistant. If you also have an infrared receiver, it picks up key presses from the Sony remote, so you can use the remote to run automations.
@@ -85,26 +85,20 @@ A media player entity is created when an infrared emitter is configured.
 
 ### Buttons
 
-Button entities are created when an infrared emitter is configured. Each button sends one key press to the TV.
-
-These buttons are enabled by default:
+Button entities are created when an infrared emitter is configured. Each button sends one key press to the TV. Volume, mute, channel, and play, pause, and stop aren't buttons, since the media player already has them.
 
 - **Power**, **Power on**, **Power off**
-- **HDMI 1**, **HDMI 2**, **HDMI 3**, **HDMI 4**
-- **Play**, **Pause**, **Stop**
-- **Volume up**, **Volume down**, **Mute**
-- **Channel up**, **Channel down**
-- **Input**
-- **Up**, **Down**, **Left**, **Right**, **OK**
+- **Input**, **TV**, **HDMI**, **HDMI 1**, **HDMI 2**, **HDMI 3**, **HDMI 4**
+- **Up**, **Down**, **Left**, **Right**, **OK**, **Enter**
 - **Home**, **Exit**, **Info**
-
-These buttons are [disabled by default](/docs/configuration/customizing-entities/#disabling-or-enabling-an-entity), since they're less commonly used or not on every remote. Enable the ones you need.
-
-- **Number 0** through **Number 9**, **Channel dash**, **Enter**
-- **TV**, **HDMI**, **Component**
+- **Number 0** through **Number 9**
 - **Red**, **Green**, **Yellow**, **Blue**
 - **Rewind**, **Fast forward**, **Previous**, **Next**
-- **Sleep**, **Jump**, **Favorites**, **Closed captions**, **Audio**, **Picture mode**
+- **Closed captions**, **Audio**, **Picture mode**
+
+These buttons are [disabled by default](/docs/configuration/customizing-entities/#disabling-or-enabling-an-entity), since they're rarely used or not on every remote. Enable the ones you need.
+
+- **Component**, **Channel dash**, **Sleep**, **Jump**, **Favorites**
 
 **Power** toggles the TV on or off, while **Power on** and **Power off** always do the same thing no matter what state the TV is in. **HDMI** and **Component** step through inputs of that type, while **HDMI 1** to **HDMI 4** go straight to that input.
 
@@ -119,7 +113,7 @@ An event entity is created when an infrared receiver is configured.
     - Channels and inputs: `channel_up`, `channel_down`, `input`, `tv`, `hdmi`, `hdmi_1`, `hdmi_2`, `hdmi_3`, `hdmi_4`, `component`, `jump`, `favorites`
     - Playback: `play`, `pause`, `stop`, `rewind`, `fast_forward`, `previous`, `next`
     - Number keys: `num_0` through `num_9`, `channel_dash`, `enter`
-    - Navigation: `nav_up`, `nav_down`, `nav_left`, `nav_right`, `ok`, `home`, `exit`, `info`
+    - Navigation: `up`, `down`, `left`, `right`, `ok`, `home`, `exit`, `info`
     - Picture and sound: `audio`, `picture`, `closed_captions`
     - Color keys: `red`, `green`, `yellow`, `blue`
     - `unknown` for any other Sony TV key
