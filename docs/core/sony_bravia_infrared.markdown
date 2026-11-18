@@ -60,6 +60,15 @@ Select at least one of **Infrared emitter** or **Infrared receiver**. Pick both 
 
 An infrared emitter or receiver can only be used by one Sony Bravia TV. To control a second TV, set it up with a different emitter.
 
+## Options
+
+To change the options, go to {% my integrations title="**Settings** > **Devices & services**" %}, select **Sony Bravia Infrared**, and select **Configure** next to the TV. Options are only available once the TV has an infrared receiver.
+
+{% configuration_basic %}
+Track physical remote:
+  description: "The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync. It's on by default."
+{% endconfiguration_basic %}
+
 ## Reconfiguring the integration
 
 If you replace your infrared emitter or add a receiver later, you can update the TV without removing and re-adding the integration.
@@ -85,14 +94,14 @@ A media player entity is created when an infrared emitter is configured.
 
 #### Following the remote
 
-If an infrared receiver is configured, the media player also updates when you use the Sony remote:
+If an infrared receiver is configured and the [**Track physical remote**](#options) option is on (it is by default), the media player also updates when you use the Sony remote:
 
 - **Power on** and **Power off** set the power state.
 - **Power** flips the power state. If Home Assistant doesn't know the state yet, it stays unknown, since the key could go either way. Turn the TV on or off from Home Assistant once and it'll follow from there.
 - **TV** and **HDMI 1** to **HDMI 4** set the source.
 - **Input**, **HDMI**, and **Component** clear the source, since they step through inputs and Home Assistant can't tell which one you landed on.
 
-This uses the **Received command** event entity, so keep it enabled.
+This uses the **Received command** event entity, so keep it enabled. Turn **Track physical remote** off if you'd rather only Home Assistant changes the state, for example if the receiver often misses keys. The event entity keeps firing either way.
 
 ### Buttons
 

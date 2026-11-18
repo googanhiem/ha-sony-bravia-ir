@@ -1,0 +1,294 @@
+From 5c862b84ba13ab381afa57f1d2949a622627ed1c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 09:55:28 +0000
+Subject: [PATCH 5/5] Add a Track physical remote option to Sony Bravia Infrared
+
+Lets people turn off the media player following the Sony remote, for
+example when the receiver misses keys. It is on by default, and the
+options flow aborts when no receiver is configured.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RrPaBaU6zM6AhoWcyUefct
+---
+ .../sony_bravia_infrared/config_flow.py       | 57 ++++++++++++++++++-
+ .../components/sony_bravia_infrared/const.py  |  2 +
+ .../sony_bravia_infrared/media_player.py      | 20 +++++--
+ .../sony_bravia_infrared/strings.json         | 16 ++++++
+ .../sony_bravia_infrared/test_config_flow.py  | 44 ++++++++++++++
+ .../sony_bravia_infrared/test_media_player.py | 29 ++++++++++
+ 6 files changed, 160 insertions(+), 8 deletions(-)
+
+diff --git a/homeassistant/components/sony_bravia_infrared/config_flow.py b/homeassistant/components/sony_bravia_infrared/config_flow.py
+index f42bd15f..c880b079 100644
+--- a/homeassistant/components/sony_bravia_infrared/config_flow.py
++++ b/homeassistant/components/sony_bravia_infrared/config_flow.py
+@@ -9,12 +9,27 @@ from homeassistant.components.infrared import (
+     async_get_emitters,
+     async_get_receivers,
+ )
+-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
++from homeassistant.config_entries import (
++    ConfigEntry,
++    ConfigFlow,
++    ConfigFlowResult,
++    OptionsFlowWithReload,
++)
+ from homeassistant.core import HomeAssistant, callback
+ from homeassistant.helpers import entity_registry as er
+-from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
++from homeassistant.helpers.selector import (
++    BooleanSelector,
++    EntitySelector,
++    EntitySelectorConfig,
++)
+ 
+-from .const import CONF_INFRARED_ENTITY_ID, CONF_INFRARED_RECEIVER_ENTITY_ID, DOMAIN
++from .const import (
++    CONF_INFRARED_ENTITY_ID,
++    CONF_INFRARED_RECEIVER_ENTITY_ID,
++    CONF_TRACK_PHYSICAL_REMOTE,
++    DEFAULT_TRACK_PHYSICAL_REMOTE,
++    DOMAIN,
++)
+ 
+ 
+ @callback
+@@ -49,6 +64,13 @@ def _has_infrared_entity(user_input: dict[str, Any]) -> bool:
+ class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
+     """Handle a config flow for Sony Bravia Infrared."""
+ 
++    @staticmethod
++    @callback
++    @override
++    def async_get_options_flow(config_entry: ConfigEntry) -> SonyBraviaIrOptionsFlow:
++        """Get the options flow for this handler."""
++        return SonyBraviaIrOptionsFlow()
++
+     @callback
+     def _async_has_infrared_entities(self) -> bool:
+         """Return True if any infrared emitter or receiver exists."""
+@@ -121,3 +143,32 @@ class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
+             ),
+             errors=errors,
+         )
++
++
++class SonyBraviaIrOptionsFlow(OptionsFlowWithReload):
++    """Handle options for Sony Bravia Infrared."""
++
++    async def async_step_init(
++        self, user_input: dict[str, Any] | None = None
++    ) -> ConfigFlowResult:
++        """Manage the options."""
++        if not self.config_entry.data.get(CONF_INFRARED_RECEIVER_ENTITY_ID):
++            return self.async_abort(reason="receiver_required")
++
++        if user_input is not None:
++            return self.async_create_entry(data=user_input)
++
++        return self.async_show_form(
++            step_id="init",
++            data_schema=self.add_suggested_values_to_schema(
++                probatio.Schema(
++                    {
++                        probatio.Required(
++                            CONF_TRACK_PHYSICAL_REMOTE,
++                            default=DEFAULT_TRACK_PHYSICAL_REMOTE,
++                        ): BooleanSelector(),
++                    }
++                ),
++                self.config_entry.options,
++            ),
++        )
+diff --git a/homeassistant/components/sony_bravia_infrared/const.py b/homeassistant/components/sony_bravia_infrared/const.py
+index f003d189..3f9c5578 100644
+--- a/homeassistant/components/sony_bravia_infrared/const.py
++++ b/homeassistant/components/sony_bravia_infrared/const.py
+@@ -3,6 +3,8 @@
+ DOMAIN = "sony_bravia_infrared"
+ CONF_INFRARED_ENTITY_ID = "infrared_entity_id"
+ CONF_INFRARED_RECEIVER_ENTITY_ID = "infrared_receiver_entity_id"
++CONF_TRACK_PHYSICAL_REMOTE = "track_physical_remote"
++DEFAULT_TRACK_PHYSICAL_REMOTE = True
+ 
+ # Dispatcher signal for keys received from the remote, formatted with the entry ID.
+ SIGNAL_RECEIVED_COMMAND = "sony_bravia_infrared_received_command_{}"
+diff --git a/homeassistant/components/sony_bravia_infrared/media_player.py b/homeassistant/components/sony_bravia_infrared/media_player.py
+index 35b746b9..4114c20b 100644
+--- a/homeassistant/components/sony_bravia_infrared/media_player.py
++++ b/homeassistant/components/sony_bravia_infrared/media_player.py
+@@ -18,7 +18,13 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
+ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+ from homeassistant.helpers.restore_state import RestoreEntity
+ 
+-from .const import CONF_INFRARED_ENTITY_ID, DOMAIN, SIGNAL_RECEIVED_COMMAND
++from .const import (
++    CONF_INFRARED_ENTITY_ID,
++    CONF_TRACK_PHYSICAL_REMOTE,
++    DEFAULT_TRACK_PHYSICAL_REMOTE,
++    DOMAIN,
++    SIGNAL_RECEIVED_COMMAND,
++)
+ from .entity import SonyBraviaIrEntity, sirc_command
+ 
+ PARALLEL_UPDATES = 1
+@@ -86,16 +92,20 @@ class SonyBraviaIrMediaPlayer(
+         super().__init__(entry, unique_id_suffix="media_player")
+         self._infrared_emitter_entity_id = infrared_entity_id
+         self._signal = SIGNAL_RECEIVED_COMMAND.format(entry.entry_id)
++        self._track_physical_remote = entry.options.get(
++            CONF_TRACK_PHYSICAL_REMOTE, DEFAULT_TRACK_PHYSICAL_REMOTE
++        )
+ 
+     @override
+     async def async_added_to_hass(self) -> None:
+         """Restore the assumed state and follow keys received from the remote."""
+         await super().async_added_to_hass()
+-        self.async_on_remove(
+-            async_dispatcher_connect(
+-                self.hass, self._signal, self._async_handle_received_command
++        if self._track_physical_remote:
++            self.async_on_remove(
++                async_dispatcher_connect(
++                    self.hass, self._signal, self._async_handle_received_command
++                )
+             )
+-        )
+         if (last_state := await self.async_get_last_state()) is None:
+             return
+         if last_state.state in (MediaPlayerState.ON, MediaPlayerState.OFF):
+diff --git a/homeassistant/components/sony_bravia_infrared/strings.json b/homeassistant/components/sony_bravia_infrared/strings.json
+index 25cb277e..6b866ffc 100644
+--- a/homeassistant/components/sony_bravia_infrared/strings.json
++++ b/homeassistant/components/sony_bravia_infrared/strings.json
+@@ -242,5 +242,21 @@
+     "invalid_source": {
+       "message": "{source} is not a valid source for this TV."
+     }
++  },
++  "options": {
++    "abort": {
++      "receiver_required": "Tracking the physical remote needs an infrared receiver. Add one by reconfiguring this TV first."
++    },
++    "step": {
++      "init": {
++        "data": {
++          "track_physical_remote": "Track physical remote"
++        },
++        "data_description": {
++          "track_physical_remote": "The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync."
++        },
++        "title": "Sony Bravia TV options"
++      }
++    }
+   }
+ }
+diff --git a/tests/components/sony_bravia_infrared/test_config_flow.py b/tests/components/sony_bravia_infrared/test_config_flow.py
+index b6ba8106..09f4a53b 100644
+--- a/tests/components/sony_bravia_infrared/test_config_flow.py
++++ b/tests/components/sony_bravia_infrared/test_config_flow.py
+@@ -12,6 +12,7 @@ from homeassistant.components.infrared import DATA_COMPONENT as INFRARED_DATA_CO
+ from homeassistant.components.sony_bravia_infrared.const import (
+     CONF_INFRARED_ENTITY_ID,
+     CONF_INFRARED_RECEIVER_ENTITY_ID,
++    CONF_TRACK_PHYSICAL_REMOTE,
+     DOMAIN,
+ )
+ from homeassistant.config_entries import SOURCE_USER
+@@ -283,3 +284,46 @@ async def test_reconfigure_flow_no_infrared_entities(
+ 
+     assert result["type"] is FlowResultType.ABORT
+     assert result["reason"] == "no_infrared_entities"
++
++
++@pytest.mark.parametrize("track_physical_remote", [False, True])
++@pytest.mark.usefixtures(
++    "mock_infrared_emitter_entity", "mock_infrared_receiver_entity"
++)
++async def test_options_flow(
++    hass: HomeAssistant,
++    mock_config_entry: MockConfigEntry,
++    track_physical_remote: bool,
++) -> None:
++    """Test turning physical remote tracking on and off."""
++    mock_config_entry.add_to_hass(hass)
++    await hass.config_entries.async_setup(mock_config_entry.entry_id)
++    await hass.async_block_till_done()
++
++    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
++    assert result["type"] is FlowResultType.FORM
++    assert result["step_id"] == "init"
++
++    result = await hass.config_entries.options.async_configure(
++        result["flow_id"],
++        user_input={CONF_TRACK_PHYSICAL_REMOTE: track_physical_remote},
++    )
++
++    assert result["type"] is FlowResultType.CREATE_ENTRY
++    assert mock_config_entry.options == {
++        CONF_TRACK_PHYSICAL_REMOTE: track_physical_remote
++    }
++
++
++@pytest.mark.usefixtures("mock_infrared_emitter_entity", "mock_setup_entry")
++async def test_options_flow_requires_receiver(hass: HomeAssistant) -> None:
++    """Test the options flow aborts when no receiver is configured."""
++    entry = MockConfigEntry(
++        domain=DOMAIN, data={CONF_INFRARED_ENTITY_ID: EMITTER_ENTITY_ID}
++    )
++    entry.add_to_hass(hass)
++
++    result = await hass.config_entries.options.async_init(entry.entry_id)
++
++    assert result["type"] is FlowResultType.ABORT
++    assert result["reason"] == "receiver_required"
+diff --git a/tests/components/sony_bravia_infrared/test_media_player.py b/tests/components/sony_bravia_infrared/test_media_player.py
+index e672bc04..5a555449 100644
+--- a/tests/components/sony_bravia_infrared/test_media_player.py
++++ b/tests/components/sony_bravia_infrared/test_media_player.py
+@@ -38,6 +38,9 @@ from homeassistant.components.media_player import (
+     SERVICE_VOLUME_UP,
+     MediaPlayerState,
+ )
++from homeassistant.components.sony_bravia_infrared.const import (
++    CONF_TRACK_PHYSICAL_REMOTE,
++)
+ from homeassistant.const import ATTR_ENTITY_ID, STATE_UNKNOWN, Platform
+ from homeassistant.core import HomeAssistant, State
+ from homeassistant.exceptions import ServiceValidationError
+@@ -350,6 +353,32 @@ async def test_remote_source_keys(
+     assert state.attributes.get(ATTR_INPUT_SOURCE) == expected_source
+ 
+ 
++async def test_remote_ignored_when_not_tracking(
++    hass: HomeAssistant,
++    mock_config_entry: MockConfigEntry,
++    mock_infrared_emitter_entity: MockInfraredEmitterEntity,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    freezer: FrozenDateTimeFactory,
++) -> None:
++    """Test the media player ignores the remote with tracking turned off."""
++    mock_config_entry.add_to_hass(hass)
++    hass.config_entries.async_update_entry(
++        mock_config_entry, options={CONF_TRACK_PHYSICAL_REMOTE: False}
++    )
++    await hass.config_entries.async_setup(mock_config_entry.entry_id)
++    await hass.async_block_till_done()
++
++    _press(mock_infrared_receiver_entity, freezer, SonyTVCode.POWER_ON)
++    await hass.async_block_till_done()
++
++    state = hass.states.get(MEDIA_PLAYER_ENTITY_ID)
++    assert state is not None
++    assert state.state == STATE_UNKNOWN
++    event_state = hass.states.get("event.sony_bravia_tv_received_command")
++    assert event_state is not None
++    assert event_state.attributes["event_type"] == "power_on"
++
++
+ @pytest.mark.usefixtures("init_integration")
+ async def test_media_player_availability_follows_ir_entity(
+     hass: HomeAssistant,
+-- 
+2.43.0
+
