@@ -49,11 +49,29 @@ Copy `custom_components/sony_bravia_ir` into your Home Assistant
 | **TV generation** | *Android TV / Google TV (2015 and newer)* or *Classic Bravia (before 2015)*. This only decides which buttons are enabled by default; every button exists on both. |
 | **Model** | Optional, e.g. `KD-55X85J`. Only used to name the device. |
 | **Infrared emitter** | Used to send commands. Needed for the media player and buttons. |
-| **Infrared receiver** | Optional. Turns presses on the original remote into events. |
+| **Infrared receiver** | Optional. Turns presses on the original remote into events, and keeps the media player in step with the remote. |
 
 At least one emitter or receiver is required. You can change all of these
 later with *Reconfigure*. Entries created by the earlier KDL-42W653A-only
 version are migrated automatically to *Classic* with model KDL-42W653A.
+
+### Options
+
+With a receiver set up, *Configure* on the TV has one option:
+
+| Option | Meaning |
+| --- | --- |
+| **Track physical remote** | On by default. The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync. |
+
+When it's on, the media player follows the original remote:
+
+- **Power on** and **Power off** set the power state, and **Power** flips it.
+- **TV** and **HDMI 1** to **HDMI 4** set the source.
+- **Input** clears the source, since it steps through inputs and Home
+  Assistant can't tell which one you landed on.
+
+The `event` entity keeps firing either way. Turn the option off if you only
+want Home Assistant's own commands to change the state.
 
 ## What you get
 
@@ -70,8 +88,10 @@ All entities belong to one device, **Sony Bravia TV**.
 
 - IR only sends, so the integration never reads anything from the TV. Power
   state and source are *assumed* from the last command Home Assistant sent,
-  and are restored after a restart. Using the original remote does not
-  change the media player state.
+  or the last key the receiver picked up from the original remote (see
+  [Options](#options)), and are restored after a restart. They can drift if
+  the receiver misses a key, or the TV is switched some other way, like
+  HDMI-CEC.
 - There is no volume level, current app or now-playing information.
 - Mute is a toggle on Sony TVs.
 - The voice / Google Assistant button on modern remotes uses Bluetooth, not IR.

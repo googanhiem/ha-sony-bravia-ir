@@ -43,6 +43,22 @@
       }
     }
   },
+  "options": {
+    "abort": {
+      "receiver_required": "Tracking the physical remote needs an infrared receiver. Add one by reconfiguring this TV first."
+    },
+    "step": {
+      "init": {
+        "title": "Sony Bravia TV options",
+        "data": {
+          "track_physical_remote": "Track physical remote"
+        },
+        "data_description": {
+          "track_physical_remote": "The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync."
+        }
+      }
+    }
+  },
   "entity": {
     "button": {
       "power": {

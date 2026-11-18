@@ -10,14 +10,21 @@ from homeassistant.components.media_player import (
     MediaPlayerState,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_platform
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .codes import SIRC_FRAMES_PER_COMMAND, SonyBraviaCode, SonyRepeatedCommand
-from .const import CONF_INFRARED_ENTITY_ID, DOMAIN
+from .const import (
+    CONF_INFRARED_ENTITY_ID,
+    CONF_TRACK_PHYSICAL_REMOTE,
+    DEFAULT_TRACK_PHYSICAL_REMOTE,
+    DOMAIN,
+    SIGNAL_RECEIVED_COMMAND,
+)
 from .entity import SonyBraviaIrEntity
 
 try:  # Home Assistant 2026.11+ validates with probatio.
@@ -50,6 +57,13 @@ SOURCE_TO_CODE: dict[str, SonyBraviaCode] = {
     "HDMI 4": SonyBraviaCode.HDMI_4,
 }
 
+# Received keys that select a known source, by event type.
+EVENT_TYPE_TO_SOURCE: dict[str, str] = {
+    code.name.lower(): source for source, code in SOURCE_TO_CODE.items()
+}
+# Received keys that step through inputs, so the new source can't be known.
+SOURCE_CYCLING_EVENT_TYPES = {SonyBraviaCode.INPUT.name.lower()}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -73,7 +87,8 @@ class SonyBraviaIrMediaPlayer(
     """Sony Bravia TV controlled over infrared.
 
     Infrared is one-way, so power state and source are assumed from the last
-    command sent and restored across restarts.
+    command sent, or the last key received from the remote, and restored
+    across restarts.
     """
 
     _attr_name = None
@@ -99,17 +114,48 @@ class SonyBraviaIrMediaPlayer(
         self._attr_state = MediaPlayerState.ON
         self._attr_source = None
         self._attr_source_list = list(SOURCE_TO_CODE)
+        self._signal = SIGNAL_RECEIVED_COMMAND.format(entry.entry_id)
+        self._track_physical_remote = entry.options.get(
+            CONF_TRACK_PHYSICAL_REMOTE, DEFAULT_TRACK_PHYSICAL_REMOTE
+        )
 
     @override
     async def async_added_to_hass(self) -> None:
-        """Restore the assumed power state and source."""
+        """Restore the assumed state and follow keys received from the remote."""
         await super().async_added_to_hass()
+        if self._track_physical_remote:
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass, self._signal, self._async_handle_received_command
+                )
+            )
         if (last_state := await self.async_get_last_state()) is None:
             return
         if last_state.state == MediaPlayerState.OFF:
             self._attr_state = MediaPlayerState.OFF
         if (source := last_state.attributes.get("source")) in SOURCE_TO_CODE:
             self._attr_source = source
+
+    @callback
+    def _async_handle_received_command(self, event_type: str) -> None:
+        """Update the assumed state from a key pressed on the remote."""
+        if event_type == "power_on":
+            self._attr_state = MediaPlayerState.ON
+        elif event_type == "power_off":
+            self._attr_state = MediaPlayerState.OFF
+        elif event_type == "power":
+            self._attr_state = (
+                MediaPlayerState.OFF
+                if self._attr_state == MediaPlayerState.ON
+                else MediaPlayerState.ON
+            )
+        elif (source := EVENT_TYPE_TO_SOURCE.get(event_type)) is not None:
+            self._attr_source = source
+        elif event_type in SOURCE_CYCLING_EVENT_TYPES:
+            self._attr_source = None
+        else:
+            return
+        self.async_write_ha_state()
 
     async def _send(self, code: SonyBraviaCode) -> None:
         """Send a code to the TV."""

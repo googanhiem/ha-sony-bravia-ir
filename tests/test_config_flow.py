@@ -7,6 +7,7 @@ from custom_components.sony_bravia_ir.const import (
     CONF_INFRARED_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
     CONF_MODEL,
+    CONF_TRACK_PHYSICAL_REMOTE,
     DOMAIN,
 )
 from homeassistant.config_entries import SOURCE_USER
@@ -187,3 +188,42 @@ async def test_no_infrared_entities(hass: HomeAssistant) -> None:
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "no_infrared_entities"
+
+
+@pytest.mark.parametrize("track_physical_remote", [False, True])
+async def test_options_flow(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    track_physical_remote: bool,
+) -> None:
+    """Test turning physical remote tracking on and off."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={CONF_TRACK_PHYSICAL_REMOTE: track_physical_remote},
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert mock_config_entry.options == {
+        CONF_TRACK_PHYSICAL_REMOTE: track_physical_remote
+    }
+
+
+@pytest.mark.parametrize("has_receiver", [False])
+async def test_options_flow_requires_receiver(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Test the options flow aborts when no receiver is configured."""
+    mock_config_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "receiver_required"

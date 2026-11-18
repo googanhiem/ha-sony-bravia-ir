@@ -7,11 +7,17 @@ from homeassistant.components.infrared import (
     async_get_emitters,
     async_get_receivers,
 )
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlowWithReload,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
     SelectSelector,
@@ -25,6 +31,8 @@ from .const import (
     CONF_INFRARED_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
     CONF_MODEL,
+    CONF_TRACK_PHYSICAL_REMOTE,
+    DEFAULT_TRACK_PHYSICAL_REMOTE,
     DOMAIN,
     BraviaGeneration,
 )
@@ -78,6 +86,12 @@ class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Sony Bravia IR."""
 
     VERSION = 2
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> "SonyBraviaIrOptionsFlow":
+        """Get the options flow for this handler."""
+        return SonyBraviaIrOptionsFlow()
 
     def _entity_name(self, entity_id: str) -> str:
         """Return the friendly name of an entity for the entry title."""
@@ -157,4 +171,33 @@ class SonyBraviaIrConfigFlow(ConfigFlow, domain=DOMAIN):
                 _tv_schema(self.hass), entry.data
             ),
             errors=errors,
+        )
+
+
+class SonyBraviaIrOptionsFlow(OptionsFlowWithReload):
+    """Handle options for Sony Bravia IR."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if not self.config_entry.data.get(CONF_INFRARED_RECEIVER_ENTITY_ID):
+            return self.async_abort(reason="receiver_required")
+
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_TRACK_PHYSICAL_REMOTE,
+                            default=DEFAULT_TRACK_PHYSICAL_REMOTE,
+                        ): BooleanSelector(),
+                    }
+                ),
+                self.config_entry.options,
+            ),
         )
