@@ -1,0 +1,305 @@
+From 05aaa053d71bb40f9cd95f68febd83f90a86d1ab Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 09:32:56 +0000
+Subject: [PATCH 4/4] Follow the Sony remote in the Sony Bravia Infrared media
+ player
+
+When an infrared receiver is configured, the event entity passes each key
+on to the media player. Power on, power off and the power toggle update
+the assumed power state, and TV and HDMI 1 to 4 set the source. Input
+cycling keys clear the source, since the new input can't be known.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RrPaBaU6zM6AhoWcyUefct
+---
+ .../components/sony_bravia_infrared/const.py  |   3 +
+ .../components/sony_bravia_infrared/event.py  |   5 +-
+ .../sony_bravia_infrared/media_player.py      |  48 ++++++-
+ .../sony_bravia_infrared/test_media_player.py | 117 +++++++++++++++++-
+ 4 files changed, 167 insertions(+), 6 deletions(-)
+
+diff --git a/homeassistant/components/sony_bravia_infrared/const.py b/homeassistant/components/sony_bravia_infrared/const.py
+index 98cb27ee..f003d189 100644
+--- a/homeassistant/components/sony_bravia_infrared/const.py
++++ b/homeassistant/components/sony_bravia_infrared/const.py
+@@ -3,3 +3,6 @@
+ DOMAIN = "sony_bravia_infrared"
+ CONF_INFRARED_ENTITY_ID = "infrared_entity_id"
+ CONF_INFRARED_RECEIVER_ENTITY_ID = "infrared_receiver_entity_id"
++
++# Dispatcher signal for keys received from the remote, formatted with the entry ID.
++SIGNAL_RECEIVED_COMMAND = "sony_bravia_infrared_received_command_{}"
+diff --git a/homeassistant/components/sony_bravia_infrared/event.py b/homeassistant/components/sony_bravia_infrared/event.py
+index 912c1630..03cbc06f 100644
+--- a/homeassistant/components/sony_bravia_infrared/event.py
++++ b/homeassistant/components/sony_bravia_infrared/event.py
+@@ -20,9 +20,10 @@ from homeassistant.components.infrared import (
+ )
+ from homeassistant.config_entries import ConfigEntry
+ from homeassistant.core import HomeAssistant, callback
++from homeassistant.helpers.dispatcher import async_dispatcher_send
+ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+ 
+-from .const import CONF_INFRARED_RECEIVER_ENTITY_ID
++from .const import CONF_INFRARED_RECEIVER_ENTITY_ID, SIGNAL_RECEIVED_COMMAND
+ from .entity import SonyBraviaIrEntity
+ 
+ _LOGGER = logging.getLogger(__name__)
+@@ -115,6 +116,7 @@ class SonyBraviaIrReceivedCommandEvent(
+         """Initialize the event entity."""
+         super().__init__(entry, unique_id_suffix="received_command")
+         self._infrared_receiver_entity_id = receiver_entity_id
++        self._signal = SIGNAL_RECEIVED_COMMAND.format(entry.entry_id)
+         self._last_frame: tuple[int, int, int] | None = None
+         self._last_frame_time = 0.0
+ 
+@@ -148,6 +150,7 @@ class SonyBraviaIrReceivedCommandEvent(
+         )
+         self._trigger_event(event_type)
+         self.async_write_ha_state()
++        async_dispatcher_send(self.hass, self._signal, event_type)
+ 
+ 
+ def _event_type(sony_command: SonyCommand) -> str | None:
+diff --git a/homeassistant/components/sony_bravia_infrared/media_player.py b/homeassistant/components/sony_bravia_infrared/media_player.py
+index 8419f715..35b746b9 100644
+--- a/homeassistant/components/sony_bravia_infrared/media_player.py
++++ b/homeassistant/components/sony_bravia_infrared/media_player.py
+@@ -12,12 +12,13 @@ from homeassistant.components.media_player import (
+     MediaPlayerState,
+ )
+ from homeassistant.config_entries import ConfigEntry
+-from homeassistant.core import HomeAssistant
++from homeassistant.core import HomeAssistant, callback
+ from homeassistant.exceptions import ServiceValidationError
++from homeassistant.helpers.dispatcher import async_dispatcher_connect
+ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+ from homeassistant.helpers.restore_state import RestoreEntity
+ 
+-from .const import CONF_INFRARED_ENTITY_ID, DOMAIN
++from .const import CONF_INFRARED_ENTITY_ID, DOMAIN, SIGNAL_RECEIVED_COMMAND
+ from .entity import SonyBraviaIrEntity, sirc_command
+ 
+ PARALLEL_UPDATES = 1
+@@ -30,6 +31,17 @@ SOURCES: dict[str, SonyTVCode | SonyTVExtendedCode] = {
+     "HDMI 4": SonyTVExtendedCode.HDMI_4,
+ }
+ 
++# Received keys that select a known source.
++_EVENT_TYPE_TO_SOURCE = {
++    "tv": "TV",
++    "hdmi_1": "HDMI 1",
++    "hdmi_2": "HDMI 2",
++    "hdmi_3": "HDMI 3",
++    "hdmi_4": "HDMI 4",
++}
++# Received keys that step through inputs, so the new source can't be known.
++_SOURCE_CYCLING_EVENT_TYPES = {"input", "hdmi", "component"}
++
+ 
+ async def async_setup_entry(
+     hass: HomeAssistant,
+@@ -48,7 +60,8 @@ class SonyBraviaIrMediaPlayer(
+     """Sony Bravia TV controlled over infrared.
+ 
+     The TV never reports back, so the power state and source are assumed from
+-    the last command sent and restored across restarts.
++    the last command sent, or the last key received from the remote, and
++    restored across restarts.
+     """
+ 
+     _attr_name = None
+@@ -72,11 +85,17 @@ class SonyBraviaIrMediaPlayer(
+         """Initialize the media player."""
+         super().__init__(entry, unique_id_suffix="media_player")
+         self._infrared_emitter_entity_id = infrared_entity_id
++        self._signal = SIGNAL_RECEIVED_COMMAND.format(entry.entry_id)
+ 
+     @override
+     async def async_added_to_hass(self) -> None:
+-        """Restore the assumed power state and source."""
++        """Restore the assumed state and follow keys received from the remote."""
+         await super().async_added_to_hass()
++        self.async_on_remove(
++            async_dispatcher_connect(
++                self.hass, self._signal, self._async_handle_received_command
++            )
++        )
+         if (last_state := await self.async_get_last_state()) is None:
+             return
+         if last_state.state in (MediaPlayerState.ON, MediaPlayerState.OFF):
+@@ -84,6 +103,27 @@ class SonyBraviaIrMediaPlayer(
+         if (source := last_state.attributes.get("source")) in SOURCES:
+             self._attr_source = source
+ 
++    @callback
++    def _async_handle_received_command(self, event_type: str) -> None:
++        """Update the assumed state from a key pressed on the remote."""
++        if event_type == "power_on":
++            self._attr_state = MediaPlayerState.ON
++        elif event_type == "power_off":
++            self._attr_state = MediaPlayerState.OFF
++        elif event_type == "power":
++            # A toggle from an unknown state could go either way.
++            if self._attr_state == MediaPlayerState.ON:
++                self._attr_state = MediaPlayerState.OFF
++            elif self._attr_state == MediaPlayerState.OFF:
++                self._attr_state = MediaPlayerState.ON
++        elif (source := _EVENT_TYPE_TO_SOURCE.get(event_type)) is not None:
++            self._attr_source = source
++        elif event_type in _SOURCE_CYCLING_EVENT_TYPES:
++            self._attr_source = None
++        else:
++            return
++        self.async_write_ha_state()
++
+     async def _send_code(self, code: SonyTVCode | SonyTVExtendedCode) -> None:
+         """Send a Sony TV code."""
+         await self._send_command(sirc_command(code))
+diff --git a/tests/components/sony_bravia_infrared/test_media_player.py b/tests/components/sony_bravia_infrared/test_media_player.py
+index 282189f3..e672bc04 100644
+--- a/tests/components/sony_bravia_infrared/test_media_player.py
++++ b/tests/components/sony_bravia_infrared/test_media_player.py
+@@ -1,6 +1,10 @@
+ """Tests for the Sony Bravia Infrared media player platform."""
+ 
++from datetime import timedelta
++
++from freezegun.api import FrozenDateTimeFactory
+ from infrared_protocols.codes.sony.tv import SonyTVCode, SonyTVExtendedCode
++from infrared_protocols.commands.sony import SonyCommand
+ import pytest
+ from pytest_homeassistant.common import (
+     MockConfigEntry,
+@@ -11,9 +15,13 @@ from pytest_homeassistant.components.common import (
+     assert_availability_follows_source_entity,
+ )
+ from pytest_homeassistant.components.infrared import EMITTER_ENTITY_ID
+-from pytest_homeassistant.components.infrared.common import MockInfraredEmitterEntity
++from pytest_homeassistant.components.infrared.common import (
++    MockInfraredEmitterEntity,
++    MockInfraredReceiverEntity,
++)
+ from syrupy.assertion import SnapshotAssertion
+ 
++from homeassistant.components.infrared import InfraredReceivedSignal
+ from homeassistant.components.media_player import (
+     ATTR_INPUT_SOURCE,
+     DOMAIN as MEDIA_PLAYER_DOMAIN,
+@@ -235,6 +243,113 @@ async def test_restore_source_while_off(
+     assert state.attributes[ATTR_INPUT_SOURCE] == "HDMI 3"
+ 
+ 
++def _press(
++    receiver: MockInfraredReceiverEntity,
++    freezer: FrozenDateTimeFactory,
++    code: SonyTVCode | SonyTVExtendedCode,
++) -> None:
++    """Press a key on the physical remote, far enough apart to not be a repeat."""
++    freezer.tick(timedelta(seconds=1))
++    command = code.to_command(repeat_count=2)
++    assert isinstance(command, SonyCommand)
++    receiver._handle_received_signal(
++        InfraredReceivedSignal(timings=command.get_raw_timings())
++    )
++
++
++async def _call(hass: HomeAssistant, service: str, **data: str) -> None:
++    """Call a media player action on the TV."""
++    await hass.services.async_call(
++        MEDIA_PLAYER_DOMAIN,
++        service,
++        {ATTR_ENTITY_ID: MEDIA_PLAYER_ENTITY_ID, **data},
++        blocking=True,
++    )
++
++
++@pytest.mark.parametrize("platforms", [[Platform.EVENT, Platform.MEDIA_PLAYER]])
++@pytest.mark.parametrize(
++    ("code", "expected_state"),
++    [
++        (SonyTVCode.POWER_ON, MediaPlayerState.ON),
++        (SonyTVCode.POWER_OFF, MediaPlayerState.OFF),
++        (SonyTVCode.POWER, STATE_UNKNOWN),
++    ],
++)
++@pytest.mark.usefixtures("init_integration")
++async def test_remote_power_from_unknown(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    freezer: FrozenDateTimeFactory,
++    code: SonyTVCode,
++    expected_state: str,
++) -> None:
++    """Test remote power keys update an unknown state, except the toggle."""
++    _press(mock_infrared_receiver_entity, freezer, code)
++    await hass.async_block_till_done()
++
++    state = hass.states.get(MEDIA_PLAYER_ENTITY_ID)
++    assert state is not None
++    assert state.state == expected_state
++
++
++@pytest.mark.parametrize("platforms", [[Platform.EVENT, Platform.MEDIA_PLAYER]])
++@pytest.mark.usefixtures("init_integration")
++async def test_remote_power_toggle_flips_known_state(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    freezer: FrozenDateTimeFactory,
++) -> None:
++    """Test the remote power toggle flips a known power state."""
++    await _call(hass, SERVICE_TURN_ON)
++
++    _press(mock_infrared_receiver_entity, freezer, SonyTVCode.POWER)
++    await hass.async_block_till_done()
++    state = hass.states.get(MEDIA_PLAYER_ENTITY_ID)
++    assert state is not None
++    assert state.state == MediaPlayerState.OFF
++
++    _press(mock_infrared_receiver_entity, freezer, SonyTVCode.POWER)
++    await hass.async_block_till_done()
++    state = hass.states.get(MEDIA_PLAYER_ENTITY_ID)
++    assert state is not None
++    assert state.state == MediaPlayerState.ON
++
++
++@pytest.mark.parametrize("platforms", [[Platform.EVENT, Platform.MEDIA_PLAYER]])
++@pytest.mark.parametrize(
++    ("code", "expected_source"),
++    [
++        (SonyTVExtendedCode.HDMI_2, "HDMI 2"),
++        (SonyTVExtendedCode.HDMI_4, "HDMI 4"),
++        (SonyTVCode.TV, "TV"),
++        (SonyTVCode.INPUT, None),
++        (SonyTVCode.HDMI, None),
++        (SonyTVCode.COMPONENT, None),
++        (SonyTVCode.VOLUME_UP, "HDMI 1"),
++    ],
++)
++@pytest.mark.usefixtures("init_integration")
++async def test_remote_source_keys(
++    hass: HomeAssistant,
++    mock_infrared_receiver_entity: MockInfraredReceiverEntity,
++    freezer: FrozenDateTimeFactory,
++    code: SonyTVCode | SonyTVExtendedCode,
++    expected_source: str | None,
++) -> None:
++    """Test remote input keys update or clear the source, and other keys don't."""
++    await _call(hass, SERVICE_TURN_ON)
++    await _call(hass, SERVICE_SELECT_SOURCE, **{ATTR_INPUT_SOURCE: "HDMI 1"})
++
++    _press(mock_infrared_receiver_entity, freezer, code)
++    await hass.async_block_till_done()
++
++    state = hass.states.get(MEDIA_PLAYER_ENTITY_ID)
++    assert state is not None
++    assert state.state == MediaPlayerState.ON
++    assert state.attributes.get(ATTR_INPUT_SOURCE) == expected_source
++
++
+ @pytest.mark.usefixtures("init_integration")
+ async def test_media_player_availability_follows_ir_entity(
+     hass: HomeAssistant,
+-- 
+2.43.0
+

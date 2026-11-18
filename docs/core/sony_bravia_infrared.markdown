@@ -81,7 +81,18 @@ A media player entity is created when an infrared emitter is configured.
   - **Description**: Represents the TV and controls it over infrared.
   - **Supported features**: Turn on, turn off, volume up, volume down, mute, next track (channel up), previous track (channel down), play, pause, stop, and select source.
   - **Sources**: **TV**, **HDMI 1**, **HDMI 2**, **HDMI 3**, **HDMI 4**.
-  - **Remarks**: The TV never reports back, so the power state and source show the last command Home Assistant sent. They're kept across restarts. Using the physical remote doesn't update them.
+  - **Remarks**: The TV never reports back, so the power state and source show the last command Home Assistant sent. They're kept across restarts. If you also set up an infrared receiver, they follow the Sony remote too. See [Following the remote](#following-the-remote).
+
+#### Following the remote
+
+If an infrared receiver is configured, the media player also updates when you use the Sony remote:
+
+- **Power on** and **Power off** set the power state.
+- **Power** flips the power state. If Home Assistant doesn't know the state yet, it stays unknown, since the key could go either way. Turn the TV on or off from Home Assistant once and it'll follow from there.
+- **TV** and **HDMI 1** to **HDMI 4** set the source.
+- **Input**, **HDMI**, and **Component** clear the source, since they step through inputs and Home Assistant can't tell which one you landed on.
+
+This uses the **Received command** event entity, so keep it enabled.
 
 ### Buttons
 
@@ -209,7 +220,8 @@ automation: |
 
 ## Known limitations
 
-- The media player uses assumed state. Home Assistant can't check what the TV is actually doing, and key presses from the physical remote show up as events only. They don't update the media player's power state or source.
+- The media player uses assumed state. Home Assistant can't check what the TV is actually doing. Even with a receiver, the state can drift if the receiver misses a key, or if the TV is turned on some other way, like HDMI-CEC from a console.
+- Most Sony remotes only have a **Power** toggle and an **Input** key, not discrete power or HDMI keys. With those remotes, the power state follows only once it's known, and the source is cleared rather than updated when you change inputs.
 - Volume is step-based only. You can't set an absolute volume level.
 - Only **TV** and **HDMI 1** to **HDMI 4** can be selected as sources. There are no discrete codes for the other inputs.
 - Playback keys only do something when the TV itself is playing media, like from USB or a built-in app. They don't control devices plugged in over HDMI unless the TV passes them on with HDMI-CEC (Bravia Sync).
