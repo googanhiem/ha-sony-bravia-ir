@@ -52,7 +52,7 @@
           "track_physical_remote": "Track physical remote"
         },
         "data_description": {
-          "update_state": "It will just send IR commands and not update the state of the device. Use this if the device's state cannot be accurately tracked by Home Assistant.",
+          "update_state": "Automatically updates the device's state in Home Assistant when IR commands are sent. Turn this off if its state cannot be reliably tracked.",
           "track_physical_remote": "The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync."
         },
         "description": "Choose how Home Assistant keeps the TV's state. Track physical remote only appears when an infrared receiver is set up, and is greyed out while Update state is off."
