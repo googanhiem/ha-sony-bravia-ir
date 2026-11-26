@@ -32,12 +32,13 @@ from .const import (
     CONF_INFRARED_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
     CONF_MODEL,
-    CONF_STATELESS,
     CONF_TRACK_PHYSICAL_REMOTE,
-    DEFAULT_STATELESS,
+    CONF_UPDATE_STATE,
     DEFAULT_TRACK_PHYSICAL_REMOTE,
+    DEFAULT_UPDATE_STATE,
     DOMAIN,
     BraviaGeneration,
+    update_state_enabled,
 )
 
 try:  # Home Assistant 2026.11+ validates with probatio.
@@ -183,7 +184,7 @@ class SonyBraviaIrOptionsFlow(OptionsFlowWithReload):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage stateless mode and following the physical remote."""
+        """Manage updating the state and following the physical remote."""
         options = self.config_entry.options
         has_receiver = bool(
             self.config_entry.data.get(CONF_INFRARED_RECEIVER_ENTITY_ID)
@@ -191,11 +192,13 @@ class SonyBraviaIrOptionsFlow(OptionsFlowWithReload):
 
         if user_input is not None:
             new_options: dict[str, Any] = {
-                CONF_STATELESS: user_input.get(CONF_STATELESS, DEFAULT_STATELESS)
+                CONF_UPDATE_STATE: user_input.get(
+                    CONF_UPDATE_STATE, DEFAULT_UPDATE_STATE
+                )
             }
             if has_receiver:
                 # Keep the remote tracking choice while it is greyed out, so it
-                # comes back when stateless mode is turned off again.
+                # comes back when Update state is turned on again.
                 new_options[CONF_TRACK_PHYSICAL_REMOTE] = user_input.get(
                     CONF_TRACK_PHYSICAL_REMOTE,
                     options.get(
@@ -204,19 +207,21 @@ class SonyBraviaIrOptionsFlow(OptionsFlowWithReload):
                 )
             return self.async_create_entry(data=new_options)
 
-        stateless = options.get(CONF_STATELESS, DEFAULT_STATELESS)
+        update_state = update_state_enabled(options)
         schema: dict[Any, Any] = {
-            vol.Required(CONF_STATELESS, default=DEFAULT_STATELESS): BooleanSelector(),
+            vol.Required(
+                CONF_UPDATE_STATE, default=DEFAULT_UPDATE_STATE
+            ): BooleanSelector(),
         }
         if has_receiver:
             schema[
                 vol.Optional(
                     CONF_TRACK_PHYSICAL_REMOTE, default=DEFAULT_TRACK_PHYSICAL_REMOTE
                 )
-            ] = BooleanSelector(BooleanSelectorConfig(read_only=stateless))
+            ] = BooleanSelector(BooleanSelectorConfig(read_only=not update_state))
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(schema), options
+                vol.Schema(schema), {**options, CONF_UPDATE_STATE: update_state}
             ),
         )

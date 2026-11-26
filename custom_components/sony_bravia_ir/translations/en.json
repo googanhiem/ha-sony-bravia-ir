@@ -48,14 +48,14 @@
       "init": {
         "title": "Sony Bravia TV options",
         "data": {
-          "stateless": "Stateless (buttons only)",
+          "update_state": "Update state",
           "track_physical_remote": "Track physical remote"
         },
         "data_description": {
-          "stateless": "Don't keep any power or input state. The media player shows no state and only sends commands, like pressing buttons on a remote. While this is on, Track physical remote is greyed out and has no effect.",
+          "update_state": "It will just send IR commands and not update the state of the device. Use this if the device's state cannot be accurately tracked by Home Assistant.",
           "track_physical_remote": "The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync."
         },
-        "description": "Choose how Home Assistant keeps the TV's state. Track physical remote only appears when an infrared receiver is set up."
+        "description": "Choose how Home Assistant keeps the TV's state. Track physical remote only appears when an infrared receiver is set up, and is greyed out while Update state is off."
       }
     }
   },

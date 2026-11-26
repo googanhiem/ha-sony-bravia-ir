@@ -212,7 +212,7 @@ async def test_options_flow(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert mock_config_entry.options == {
-        "stateless": False,
+        "update_state": True,
         CONF_TRACK_PHYSICAL_REMOTE: track_physical_remote,
     }
 
@@ -221,18 +221,18 @@ async def test_options_flow(
 async def test_options_flow_without_receiver(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Test only the stateless toggle is offered when no receiver is configured."""
+    """Test only Update state is offered when no receiver is configured."""
     mock_config_entry.add_to_hass(hass)
 
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
 
     assert result["type"] is FlowResultType.FORM
     assert CONF_TRACK_PHYSICAL_REMOTE not in result["data_schema"].schema
-    assert "stateless" in result["data_schema"].schema
+    assert "update_state" in result["data_schema"].schema
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={"stateless": True}
+        result["flow_id"], user_input={"update_state": False}
     )
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert mock_config_entry.options == {"stateless": True}
+    assert mock_config_entry.options == {"update_state": False}
