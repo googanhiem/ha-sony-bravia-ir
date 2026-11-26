@@ -30,15 +30,31 @@ The **Sony Bravia TV** device page in Home Assistant, controlling a Sony KDL-42W
 
 ## Installation
 
-### HACS
+<!-- ha-marketplace:exclude-start -->
+Click to open the integration in your Home Assistant's **Marketplace**
+(*Settings → Marketplace*, Home Assistant 2026.11 or newer), then select
+**Install** and restart Home Assistant:
 
-1. HACS → ⋮ → *Custom repositories* → add this repository's URL, category **Integration**.
-2. Install **Sony Bravia IR** and restart Home Assistant.
+[![Open your Home Assistant instance and open a repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=googanhiem&repository=ha-sony-bravia-ir&category=integration)
+
+Until the integration is listed in the Marketplace catalog, Home Assistant
+first asks to add this repository as a custom repository; confirm and it
+opens it.
+
+On Home Assistant 2026.8 to 2026.10, use HACS instead:
+[open in HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=googanhiem&repository=ha-sony-bravia-ir&category=integration),
+or add `https://github.com/googanhiem/ha-sony-bravia-ir` under *HACS → ⋮ → Custom
+repositories* with category **Integration**.
+
+After the restart, set it up:
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=sony_bravia_ir)
 
 ### Manual
 
 Copy `custom_components/sony_bravia_ir` into your Home Assistant
 `config/custom_components/` folder and restart.
+<!-- ha-marketplace:exclude-end -->
 
 ## Setup
 
