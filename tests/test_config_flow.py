@@ -212,18 +212,27 @@ async def test_options_flow(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert mock_config_entry.options == {
-        CONF_TRACK_PHYSICAL_REMOTE: track_physical_remote
+        "stateless": False,
+        CONF_TRACK_PHYSICAL_REMOTE: track_physical_remote,
     }
 
 
 @pytest.mark.parametrize("has_receiver", [False])
-async def test_options_flow_requires_receiver(
+async def test_options_flow_without_receiver(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Test the options flow aborts when no receiver is configured."""
+    """Test only the stateless toggle is offered when no receiver is configured."""
     mock_config_entry.add_to_hass(hass)
 
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
 
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "receiver_required"
+    assert result["type"] is FlowResultType.FORM
+    assert CONF_TRACK_PHYSICAL_REMOTE not in result["data_schema"].schema
+    assert "stateless" in result["data_schema"].schema
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={"stateless": True}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert mock_config_entry.options == {"stateless": True}

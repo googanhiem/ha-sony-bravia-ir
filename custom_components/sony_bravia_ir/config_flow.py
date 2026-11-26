@@ -18,6 +18,7 @@ from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    BooleanSelectorConfig,
     EntitySelector,
     EntitySelectorConfig,
     SelectSelector,
@@ -31,7 +32,9 @@ from .const import (
     CONF_INFRARED_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
     CONF_MODEL,
+    CONF_STATELESS,
     CONF_TRACK_PHYSICAL_REMOTE,
+    DEFAULT_STATELESS,
     DEFAULT_TRACK_PHYSICAL_REMOTE,
     DOMAIN,
     BraviaGeneration,
@@ -180,24 +183,40 @@ class SonyBraviaIrOptionsFlow(OptionsFlowWithReload):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
-        if not self.config_entry.data.get(CONF_INFRARED_RECEIVER_ENTITY_ID):
-            return self.async_abort(reason="receiver_required")
+        """Manage stateless mode and following the physical remote."""
+        options = self.config_entry.options
+        has_receiver = bool(
+            self.config_entry.data.get(CONF_INFRARED_RECEIVER_ENTITY_ID)
+        )
 
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            new_options: dict[str, Any] = {
+                CONF_STATELESS: user_input.get(CONF_STATELESS, DEFAULT_STATELESS)
+            }
+            if has_receiver:
+                # Keep the remote tracking choice while it is greyed out, so it
+                # comes back when stateless mode is turned off again.
+                new_options[CONF_TRACK_PHYSICAL_REMOTE] = user_input.get(
+                    CONF_TRACK_PHYSICAL_REMOTE,
+                    options.get(
+                        CONF_TRACK_PHYSICAL_REMOTE, DEFAULT_TRACK_PHYSICAL_REMOTE
+                    ),
+                )
+            return self.async_create_entry(data=new_options)
 
+        stateless = options.get(CONF_STATELESS, DEFAULT_STATELESS)
+        schema: dict[Any, Any] = {
+            vol.Required(CONF_STATELESS, default=DEFAULT_STATELESS): BooleanSelector(),
+        }
+        if has_receiver:
+            schema[
+                vol.Optional(
+                    CONF_TRACK_PHYSICAL_REMOTE, default=DEFAULT_TRACK_PHYSICAL_REMOTE
+                )
+            ] = BooleanSelector(BooleanSelectorConfig(read_only=stateless))
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(
-                    {
-                        vol.Required(
-                            CONF_TRACK_PHYSICAL_REMOTE,
-                            default=DEFAULT_TRACK_PHYSICAL_REMOTE,
-                        ): BooleanSelector(),
-                    }
-                ),
-                self.config_entry.options,
+                vol.Schema(schema), options
             ),
         )

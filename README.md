@@ -57,11 +57,12 @@ version are migrated automatically to *Classic* with model KDL-42W653A.
 
 ### Options
 
-With a receiver set up, *Configure* on the TV has one option:
+*Configure* on the TV has these options:
 
 | Option | Meaning |
 | --- | --- |
-| **Track physical remote** | On by default. The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync. |
+| **Stateless (buttons only)** | Off by default. The media player keeps no power or source state and only sends commands. While it's on, Track physical remote is greyed out. See [Stateless mode](#stateless-mode). |
+| **Track physical remote** | Only shown with a receiver set up. On by default. The device's included remote control will update the state in Home Assistant. Note: sometimes button presses may be missed, causing the device to go out of sync. |
 
 When it's on, the media player follows the original remote:
 
@@ -72,6 +73,20 @@ When it's on, the media player follows the original remote:
 
 The `event` entity keeps firing either way. Turn the option off if you only
 want Home Assistant's own commands to change the state.
+
+### Stateless mode
+
+Turn on **Stateless (buttons only)** on the same *Configure* screen if you
+don't want Home Assistant to guess the TV's state at all. The media
+player then shows no state (*Unknown*) and no source; turning it on or off,
+changing the volume or picking a source just sends the command, like
+pressing a button on the remote. Nothing is remembered across restarts.
+
+While Stateless is on, **Track physical remote** is greyed out and has no
+effect; its setting is kept and applies again when you turn Stateless off.
+Home Assistant forms can't change while you're filling them in, so the
+greying out shows the next time you open *Configure*. The `event` entity and
+the buttons work the same in both modes.
 
 ## What you get
 
@@ -89,7 +104,8 @@ All entities belong to one device, **Sony Bravia TV**.
 - IR only sends, so the integration never reads anything from the TV. Power
   state and source are *assumed* from the last command Home Assistant sent,
   or the last key the receiver picked up from the original remote (see
-  [Options](#options)), and are restored after a restart. They can drift if
+  [Options](#options)), and are restored after a restart
+  ([Stateless mode](#stateless-mode) turns this off). They can drift if
   the receiver misses a key, or the TV is switched some other way, like
   HDMI-CEC.
 - There is no volume level, current app or now-playing information.
